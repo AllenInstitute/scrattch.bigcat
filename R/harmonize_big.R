@@ -44,7 +44,7 @@ get_cells_logNormal <- function(comb.dat, cells)
 ###cl.df.list cluster annotations for each dataset (optional) 
 
 
-prepare_joint_big <- function(dat.list, meta.df=NULL, cl.list=NULL, cl.df.list = NULL, de.param.list=NULL, de.genes.list=NULL, rename=TRUE)
+prepare_harmonize_big <- function(dat.list, meta.df=NULL, cl.list=NULL, cl.df.list = NULL, de.param.list=NULL, de.genes.list=NULL, rename=TRUE)
   {
     common.genes = dat.list[[1]]$row_id
     for(x in 2:length(dat.list)){
@@ -176,9 +176,9 @@ get_knn <- function(dat, ref.dat, k, method ="cor", dim=NULL)
   }
 
 
-select_joint_genes  <-  function(comb.dat, ref.dat.list, select.cells = comb.dat$all.cells, maxGenes=2000, vg.padj.th=0.5, max.dim=20,use.markers=TRUE, top.n=100,rm.eigen=NULL, conservation.th = 0.5,rm.th=rep(0.7,ncol(rm.eigen)))
+select_joint_genes_big <-  function(comb.dat, ref.dat.list, select.cells = comb.dat$all.cells, maxGenes=2000, vg.padj.th=0.5, max.dim=20,use.markers=TRUE, top.n=100,rm.eigen=NULL, conservation.th = 0.5,rm.th=rep(0.7,ncol(rm.eigen)))
   {
-    
+    require(matrixStats)
     select.genes = lapply(names(ref.dat.list), function(ref.set){
       ref.dat = ref.dat.list[[ref.set]]
       ref.cells=colnames(ref.dat)
@@ -193,9 +193,7 @@ select_joint_genes  <-  function(comb.dat, ref.dat.list, select.cells = comb.dat
           return(NULL)
         }
         de.genes = comb.dat$de.genes.list[[ref.set]]
-        print(length(de.genes))
-        
-        
+        print(length(de.genes))     
         select.genes = display_cl(cl, norm.dat=ref.dat, max.cl.size = 200, n.markers=20, de.genes= de.genes)$markers
         select.genes = intersect(select.genes, common.genes)
       }
@@ -285,7 +283,7 @@ knn_joint <- function(comb.dat, ref.sets=names(comb.dat$dat.list), select.sets= 
     get_logNormal(dat.list[[ref.set]], ref.list[[ref.set]], select.genes=common.genes)
   },simplify=F)
   if(is.null(select.genes)){
-    select.genes = select_joint_genes(comb.dat, ref.dat.list = ref.dat.list,select.cells=select.cells, ...)
+    select.genes = select_joint_genes_big(comb.dat, ref.dat.list = ref.dat.list,select.cells=select.cells, ...)
   }
   if(length(select.genes) < 5){
     return(NULL)
@@ -533,7 +531,7 @@ impute_knn <- function(knn.idx, reference, dat)
 
  
 
-process <- function(comb.dat, prefix, overwrite=TRUE, dir="./",...)
+harmonize_big <- function(comb.dat, prefix, overwrite=TRUE, dir="./",...)
   {
     fn = file.path(dir, paste0(prefix, ".rda"))
     print(fn)
@@ -568,12 +566,12 @@ process <- function(comb.dat, prefix, overwrite=TRUE, dir="./",...)
 ##' @param ... 
 ##' @return 
 ##' @author Zizhen Yao
-iter_process <- function(comb.dat, select.cells=comb.dat$all.cells, ref.sets=names(comb.dat$dat.list), prefix="", result=NULL, overwrite=TRUE, ...)
+i_harmonize_big<- function(comb.dat, select.cells=comb.dat$all.cells, ref.sets=names(comb.dat$dat.list), prefix="", result=NULL, overwrite=TRUE, ...)
   {
     
     #attach(comb.dat)
     if(is.null(result)){
-      result = process(comb.dat=comb.dat, select.cells=select.cells, ref.sets=ref.sets, prefix=prefix, overwrite=overwrite,...)
+      result = harmonize_big(comb.dat=comb.dat, select.cells=select.cells, ref.sets=ref.sets, prefix=prefix, overwrite=overwrite,...)
     }
     if(is.null(result)){
       return(NULL)
@@ -593,7 +591,7 @@ iter_process <- function(comb.dat, select.cells=comb.dat$all.cells, ref.sets=nam
         pass.th2 = sapply(ref.sets, function(set)platform.size[[set]] >= de.param.list[[set]]$min.cells*2)
         
         if(sum(pass.th) > 1 & sum(pass.th[ref.sets]) == length(ref.sets) & sum(pass.th2) >= 1){
-          tmp.result = iter_process(comb.dat, select.cells=select.cells, ref.sets=ref.sets, prefix=tmp.prefix, overwrite=overwrite, ...)
+          tmp.result = i_harmonize_big(comb.dat, select.cells=select.cells, ref.sets=ref.sets, prefix=tmp.prefix, overwrite=overwrite, ...)
           }
         else{
           tmp.result = NULL

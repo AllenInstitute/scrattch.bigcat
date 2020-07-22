@@ -23,8 +23,11 @@ append_big.dat <- function(big.dat, mat)
   }
 
 
-convert_mat_list_big.dat <- function(mat.list, backingfile=file.path(getwd(), "fbm"),...)
+convert_mat_list_big.dat <- function(mat.list, backingfile=NULL, ...)
   {
+    if(is.null(backingfile)){
+      backingfile=file.path(getwd(), paste0(Sys.Date(),"_fbm"))
+    }
     big.dat =  convert_big.dat(mat.list[[1]],backingfile=backingfile, ...)
     for(i in 2:length(mat.list)){
       big.dat = append_big.dat(big.dat, mat.list[[i]])
@@ -32,7 +35,7 @@ convert_mat_list_big.dat <- function(mat.list, backingfile=file.path(getwd(), "f
     return(big.dat)
   }
 
-reorder_big.dat <- function(big.dat, new.cols,out...)
+reorder_big.dat <- function(big.dat, new.cols,backingfile=NULL)
   {
     if(is.character(new.cols)){
       cols = match(new.cols, big.dat$col_id)
@@ -40,7 +43,10 @@ reorder_big.dat <- function(big.dat, new.cols,out...)
     else{
       cols = new.cols
     }
-    big.dat$fbm = big.dat$fbm[,cols]
+    if(is.null(backingfile)){
+      backingfile=file.path(getwd(), paste0(Sys.Date(),"_fbm"))
+    }
+    big.dat$fbm = big_copy(big.dat$fbm, ind.col=cols, backingfile=backingfile)
     big.dat$col_id = big.dat$col_id[cols]
     return(big.dat)
   }
@@ -103,7 +109,6 @@ get_cols <- function(big.dat, cols, keep.col=TRUE, sparse=TRUE)
     else{
       colnames(mat) = big.dat$col_id[id[ord]]      
     }
-    mat = Matrix(mat,sparse=sparse)
     if(sparse){
       mat = Matrix(mat,sparse=sparse)
     }
@@ -133,50 +138,25 @@ get_counts <- function(big.dat, cols, ...)
     if(big.dat$logNormal){
       mat@x = 2^mat@x -1
     }
+    mat
   }
 
 
 
-rd_PCA_big <- function(big.dat, dat, select.cells, max.dim=10, th=2, rm.eigen = NULL, rm.th = 0.7, verbose=TRUE, ncores=1)
+rd_PCA_big <- function(big.dat, dat, select.cells, max.dim=10, th=2, verbose=TRUE, ncores=1)
 {
-  pca = tryCatch({prcomp(t(dat),tol = 0.05)}, error=function(e){
-    print(paste("error:", e))
-    save(dat, file=paste0(prefix, ".PCA.error.mat.rda"))      
-    return(NULL)
-  })
-  if(is.null(pca)){
+  
+  tmp = get_PCA(dat, max.dim,verbose)
+  if(is.null(tmp)){
     return(NULL)
   }
-  pca.importance = summary(pca)$importance
-  v = pca.importance[2, ]
-  select = which((v - mean(v))/sd(v) > th)
-  tmp = head(select, max.dim)
-  rot = pca$rotatio[, tmp, drop=F]
-  rd.dat = pca$x[, tmp, drop=F]
-  if(length(select)==0){
-    return(NULL)
-  }
-    
-  if(!is.null(rm.eigen)){
-    library(matrixStats)
-    rm.cor=cor(rd.dat, rm.eigen[row.names(rd.dat),])
-    rm.cor[is.na(rm.cor)]=0
-    rm.score = rowMaxs(abs(rm.cor))
-    select = rm.score < rm.th
-    if(sum(!select)>0 & verbose){
-      print("Remove dimension:")
-      print(rm.score[!select])
+  rot = tmp$rot
+  rd.dat = tmp$rd.dat
+  pca = tmp$pca
+  if(ncol(dat)< length(select.cells)){
+    if(verbose){
+      print("project")
     }
-    if(sum(select)==0){
-      return(NULL)
-    }
-    rd.dat = rd.dat[,select,drop=F]
-    rot = rot[,select, drop=F]
-  }
-  if(all(select.cells %in% colnames(dat))){
-    rd.dat = rd.dat[select.cells,,drop=F]
-  }
-  else{
     rd.dat = big_project(big.dat, select.cells, rot, ncores=ncores)
   }
   rm(rot)
@@ -188,13 +168,14 @@ big_project <- function(big.dat, select.cells, rot, ncores=1,...)
   {
     project <- function(big.dat, cols, rot){
       dat = get_logNormal(big.dat, cols,...)[row.names(rot),]
-      dat = t(dat)  %*% rot
-      row.names(dat) = cols
+      dat = t(dat)  %*% rot      
+      row.names(dat) = row.names(dat)
       dat
     }
     gc()
     rd.dat= big_dat_apply(big.dat, select.cells, project, .combine="rbind",  ncores=ncores, rot=rot)
     rd.dat = as.matrix(rd.dat)
+    return(rd.dat)
   }
 
 
@@ -274,9 +255,16 @@ onestep_clust_big<- function(big.dat,
       print("Reduce dimensions")
     }
     counts = logCPM(counts)[select.genes,]
-    rd.result = rd_PCA_big(big.dat, dat=counts, select.cells, max.dim=max.dim, th=2, rm.eigen = rm.eigen, rm.th =rm.th, verbose=verbose)
+    rd.result = rd_PCA_big(big.dat, dat=counts, select.cells, max.dim=max.dim, verbose=verbose)
+    if(is.null(rd.result)){
+      return(NULL)
+    }
     rd.dat = rd.result$rd.dat
     rm(counts)
+    if(!is.null(rm.eigen)){
+      
+      rd.dat <- filter_RD(rd.dat, rm.eigen, rm.th, verbose=verbose)
+    }
     if(is.null(rd.dat)||ncol(rd.dat)==0){
       return(NULL)
     }
@@ -292,9 +280,7 @@ onestep_clust_big<- function(big.dat,
       }
       cl = tmp$cl
       if(length(unique(cl))>max.cl){
-        tmp.means =do.call("cbind",tapply(names(cl),cl, function(x){
-          colMeans(rd.dat[x,,drop=F])
-        },simplify=F))
+        tmp.means = get_cl_means(rd.dat, cl)
         tmp.hc = hclust(dist(t(tmp.means)), method="average")
         tmp.cl= cutree(tmp.hc, pmin(max.cl, length(unique(cl))))
         cl = setNames(tmp.cl[as.character(cl)], names(cl))
@@ -313,9 +299,7 @@ onestep_clust_big<- function(big.dat,
     }
     sampled.cells = sample_cells(cl, max.cl.size)
     norm.dat = get_logNormal(big.dat, sampled.cells)
-    rd.dat.t = t(rd.dat)
-    rm(rd.dat)
-    merge.result=merge_cl(norm.dat, cl=cl, rd.dat.t=rd.dat.t, merge.type=merge.type, de.param=de.param, max.cl.size=max.cl.size, verbose=verbose)
+    merge.result=merge_cl(norm.dat, cl=cl, rd.dat=rd.dat, merge.type=merge.type, de.param=de.param, max.cl.size=max.cl.size, verbose=verbose)
     rm(norm.dat)
     gc()
     if(is.null(merge.result)){
