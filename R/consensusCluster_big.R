@@ -111,7 +111,7 @@ iter_consensus_clust_big <- function(cl.list, co.ratio=NULL,  cl.mat=NULL, big.d
     if(co.ratio.sampled){
       co.ratio = NULL
     }
-    
+    #Map the remaining cells to the cluster with max co-clustering probability. 
     cell.cl.co.ratio= get_cell.cl.co.ratio(tmp.cl, co.ratio= co.ratio, cl.mat=cl.mat[,select.cells])
     if(length(tmp.cl) < length(select.cells)){
       cl = setNames(as.integer(colnames(cell.cl.co.ratio)[apply(cell.cl.co.ratio, 1, which.max)]), row.names(cell.cl.co.ratio))
@@ -166,7 +166,7 @@ map_result <- function(big.dat, cl.dat, test.cells, ncores=1, block.size=20000)
   {
     map <- function(big.dat, cols, cl.dat)
       {
-        source("~/zizhen/My_R/scrattch.bigcat/R/cluster_big.R")
+        #source("~/zizhen/My_R/scrattch.bigcat/R/cluster_big.R")
         test.dat = get_logNormal(big.dat, cols,sparse=FALSE)[row.names(cl.dat),,drop=F]
         test.cl.cor <- cor(test.dat, cl.dat)
         test.cl.cor[is.na(test.cl.cor)] <- 0
@@ -177,7 +177,7 @@ map_result <- function(big.dat, cl.dat, test.cells, ncores=1, block.size=20000)
     test.cl = big_dat_apply(big.dat, cols=test.cells, map, .combine="c",  ncores=ncores, block.size = block.size, cl.dat = cl.dat)
   }
 
-run_consensus_clust_big <- function(big.dat=NULL, select.cells=big.dat$col_id, niter=100, iter=1:niter, sample.frac=0.8,  mc.cores=1, co.result = NULL,  output_dir="subsample_result",de.param=de_param(),merge.type=c("undirectional","directional"), override=FALSE, init.result=NULL, method="auto",max.cl.size = 200,...)
+run_consensus_clust_big <- function(big.dat=NULL, select.cells=big.dat$col_id, niter=100, iter=1:niter, sample.frac=0.8,  mc.cores=1, co.result = NULL,  output_dir="subsample_result",de.param=de_param(),merge.type=c("undirectional","directional"), override=FALSE, init.result=NULL, method="auto",max.cl.size = 200,verbose=FALSE, ...)
 {
   if(!dir.exists(output_dir)){
     dir.create(output_dir)
@@ -203,8 +203,8 @@ run_consensus_clust_big <- function(big.dat=NULL, select.cells=big.dat$col_id, n
     
     run <- function(i,all.cells, ...){
       library(scrattch.hicat)
-      source("~/zizhen/My_R/scrattch.bigcat/R/cluster_big.R")
-      source("~/zizhen/My_R/scrattch.bigcat/R/consensusCluster_big.R")      
+      #source("~/zizhen/My_R/scrattch.bigcat/R/cluster_big.R")
+      #source("~/zizhen/My_R/scrattch.bigcat/R/consensusCluster_big.R")      
       prefix = paste("iter",i,sep=".")
       print(prefix)
       outfile= file.path(output_dir, paste0("result.",i,".rda"))
@@ -212,7 +212,7 @@ run_consensus_clust_big <- function(big.dat=NULL, select.cells=big.dat$col_id, n
         return(NULL)
       }
       load(file.path(output_dir, paste0("cells.",i,".rda")))
-      result <- iter_clust_big(big.dat = big.dat,  select.cells=select.cells, prefix=prefix, de.param = de.param, merge.type=merge.type, result=init.result, ...)
+      result <- iter_clust_big(big.dat = big.dat,  select.cells=select.cells, prefix=prefix, de.param = de.param, merge.type=merge.type, result=init.result, verbose=verbose, ...)
       #save(result, file=outfile)
       #load(outfile)
       ###Test on remaining cells
@@ -244,7 +244,7 @@ run_consensus_clust_big <- function(big.dat=NULL, select.cells=big.dat$col_id, n
   load(result.files[[1]])
   cl.size = table(result$cl)
 
-  consensus.result = iter_consensus_clust_big(cl.list=co.result$cl.list, cl.mat = co.result$cl.mat,  big.dat=big.dat, select.cells=all.cells, de.param = de.param, merge.type=merge.type, method=method, result=init.result)
+  consensus.result = iter_consensus_clust_big(cl.list=co.result$cl.list, cl.mat = co.result$cl.mat,  big.dat=big.dat, select.cells=all.cells, de.param = de.param, merge.type=merge.type, method=method, result=init.result,verbose=verbose)
   refine.result = refine_cl(consensus.result$cl, cl.mat = co.result$cl.mat, tol.th=0.01, confusion.th=0.6, min.cells= de.param$min.cells)
   markers = consensus.result$markers
   
@@ -270,16 +270,16 @@ collect_subsample_cl_matrix_big <- function(big.dat,result.files,all.cells, max.
     print(f)
     tmp=load(f)
     all.cl = with(result, setNames(as.character(cl),names(cl)))
-    if(is.null(result$test.cl)){
-      test.cells = setdiff(all.cells, names(result$cl))
-      if(length(test.cells)>0){
+    test.cells = setdiff(all.cells, names(result$cl))
+    if(length(test.cells)>0){
+      if(is.null(result$test.cl)){
         train.cells = sample_cells(result$cl, 100)
         train.norm.dat =  get_logNormal(big.dat, train.cells)[result$markers,]
         cl.dat <- get_cl_means(train.norm.dat, result$cl[train.cells])   
         result$test.cl = map_result(big.dat, cl.dat, test.cells)
         save(result, file=f)
-        all.cl = with(result, c(all.cl, setNames(as.character(test.cl), names(test.cl))))
-      }     
+      }
+      all.cl = with(result, c(all.cl, setNames(as.character(test.cl), names(test.cl))))
     }
     return(all.cl)
   }

@@ -233,10 +233,16 @@ onestep_clust_big<- function(big.dat,
                              max.cl.size = 300,
                              k.nn=15,
                              prefix = NULL, 
-                             verbose = FALSE)
+                             verbose = FALSE, overwrite=FALSE)
                             
   {
     library(matrixStats)
+    outfile=paste0(prefix, ".rda")
+    if(file.exists(outfile) & !overwrite){
+      load(outfile)
+      return(result)
+    }
+    
     method=method[1]
     merge.type=merge.type[1]
     
@@ -309,8 +315,9 @@ onestep_clust_big<- function(big.dat,
     de.genes = merge.result$de.genes
     markers= merge.result$markers
     result=list(cl=cl, markers=markers)
+
     if(verbose){
-      save(result, file=paste0(prefix, ".rda"))      
+      save(result, file=outfile)
     }
     rm(rd.dat.t)
     rm(merge.result)
@@ -366,7 +373,7 @@ iter_clust_big<- function(big.dat=NULL,
     }
 
     select.cells= intersect(select.cells, names(result$cl))
-    #save(result, file=paste0(prefix,".rda"))
+    
     cl = result$cl[select.cells]
     gene.mod = result$gene.mod
     markers=result$markers
