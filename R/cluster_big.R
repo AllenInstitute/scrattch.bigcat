@@ -143,10 +143,9 @@ get_counts <- function(big.dat, cols, ...)
 
 
 
-rd_PCA_big <- function(big.dat, dat, select.cells, max.dim=10, th=2, verbose=TRUE, ncores=1)
+rd_PCA_big <- function(big.dat, dat, select.cells, max.dim=10, th=2, verbose=TRUE, ncores=1,method="zscore")
 {
-  
-  tmp = get_PCA(dat, max.dim,verbose)
+  tmp = get_PCA(dat, max.pca=max.dim, verbose=verbose,method=method,th=th)
   if(is.null(tmp)){
     return(NULL)
   }

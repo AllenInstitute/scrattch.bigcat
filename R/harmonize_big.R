@@ -83,98 +83,6 @@ prepare_harmonize_big <- function(dat.list, meta.df=NULL, cl.list=NULL, cl.df.li
 
 
 
-test_knn <- function(knn, cl, reference, ref.cl)
-  {
-    library(reshape)
-    library(ggplot2)
-    cl=  cl[row.names(knn)]
-    if(is.factor(cl)){
-      cl = droplevels(cl)
-    }
-    ref.cl =ref.cl[reference]
-    if(is.factor(ref.cl)){
-      ref.cl = droplevels(ref.cl)
-    }
-    if(length(unique(cl)) <=1 | length(unique(ref.cl)) <= 1){
-      return(NULL)
-    }
-    pred.result = predict_knn(knn, reference, ref.cl)
-    pred.prob = as.matrix(pred.result$pred.prob)
-    cl.pred.prob=as.matrix(do.call("rbind",tapply(names(cl), cl, function(x){
-      colMeans(pred.prob[x,,drop=F])
-    })),ncol=ncol(pred.prob))
-    
-    tmp <- apply(cl.pred.prob, 1, which.max)
-    cl.pred.prob = cl.pred.prob[order(tmp),]
-    
-    match.cl = setNames(tmp[as.character(cl)], names(cl))
-    match_score = get_pair_matrix(pred.prob, names(match.cl), match.cl)
-    
-    cl.score = sum(apply(cl.pred.prob, 1, max))/sum(cl.pred.prob)
-    cell.score =  mean(match_score)
-    tb.df = melt(cl.pred.prob)
-    tb.df[[1]] = factor(as.character(tb.df[[1]]), levels=row.names(cl.pred.prob))
-    tb.df[[2]] = factor(as.character(tb.df[[2]]), levels=colnames(cl.pred.prob))
-    colnames(tb.df) = c("cl","ref.cl", "freq")
-    g <- ggplot(tb.df, 
-                aes(x = cl, y = ref.cl)) + 
-                  geom_point(aes(color = freq)) + 
-                    theme(axis.text.x = element_text(vjust = 0.1,
-                            hjust = 0.2, 
-                            angle = 90,
-                            size = 7),
-                          axis.text.y = element_text(size = 6)) + 
-                            scale_color_gradient(low = "white", high = "darkblue") + scale_size(range=c(0,3))
-    return(list(cl.score=cl.score, cell.score= cell.score, cell.pred.prob = pred.prob, cl.pred.prob = cl.pred.prob, g=g))
-  }
-
-
-sample_sets_list <- function(cells.list, cl.list, cl.sample.size=100, sample.size=5000)
-  {
-    for(x in names(cells.list)){
-      if(length(cells.list[[x]]) > sample.size){
-        if(is.null(cl.list[[x]])){
-          cells.list[[x]] = sample(cells.list[[x]], sample.size)
-        }
-        else{
-          tmp.cl = cl.list[[x]][cells.list[[x]]]
-          if(is.factor(tmp.cl)){
-            tmp.cl = droplevels(tmp.cl)
-          }
-          good.cl=sum(table(tmp.cl) > 10)
-          cells.list[[x]] = sample_cells(tmp.cl, max(cl.sample.size,round(sample.size/good.cl)))
-        }
-      }
-    }
-    return(cells.list)
-  }
-
-
-get_knn <- function(dat, ref.dat, k, method ="cor", dim=NULL)
-  {
-    
-    print(method)
-    if(method=="cor"){
-      knn.index = knn_cor(ref.dat, dat,k=k)  
-    }
-    else if(method=="cosine"){
-      knn.index = knn_cosine(ref.dat, dat,k=k)  
-    }
-    else if(method=="RANN"){
-      knn.index = RANN::nn2(t(ref.dat), t(dat), k=k)[[1]]
-    }
-    else if(method == "CCA"){
-      mat3 = crossprod(ref.dat, dat)
-      cca.svd <- irlba(mat3, dim=dim)
-      knn.index = knn_cor(cca.svd$u, cca.svd$v,  k=k)
-    }
-    else{
-      stop(paste(method, "method unknown"))
-    }
-    row.names(knn.index) = colnames(dat)
-    return(knn.index)
-  }
-
 
 select_joint_genes_big <-  function(comb.dat, ref.dat.list, select.cells = comb.dat$all.cells, maxGenes=2000, vg.padj.th=0.5, max.dim=20,use.markers=TRUE, top.n=100,rm.eigen=NULL, conservation.th = 0.5,rm.th=rep(0.7,ncol(rm.eigen)))
   {
@@ -261,7 +169,7 @@ select_joint_genes_big <-  function(comb.dat, ref.dat.list, select.cells = comb.
 ##' @param ... 
 ##' @return 
 ##' @author Zizhen Yao
-knn_joint <- function(comb.dat, ref.sets=names(comb.dat$dat.list), select.sets= names(comb.dat$dat.list), merge.sets=ref.sets, select.cells=comb.dat$all.cells, select.genes=NULL, method="cor", self.method = "RANN", k=15,  sample.size = 5000, cl.sample.size = 100, block.size = 10000, verbose=TRUE,ncores=1,...)
+knn_joint_big <- function(comb.dat, ref.sets=names(comb.dat$dat.list), select.sets= names(comb.dat$dat.list), merge.sets=ref.sets, select.cells=comb.dat$all.cells, select.genes=NULL, method="cor", self.method = "RANN", k=15,  sample.size = 5000, cl.sample.size = 100, block.size = 10000, verbose=TRUE,ncores=1,...)
 {
   if(length(select.cells) < block.size){
     ncores=1
@@ -362,7 +270,7 @@ knn_joint <- function(comb.dat, ref.sets=names(comb.dat$dat.list), select.sets= 
   cl.big= cl.platform.counts[ref.sets,,drop=F] >= cl.min.cells
   bad.cl = colnames(cl.big)[colSums(cl.big) ==0]
   cl.big = setdiff(colnames(cl.big), bad.cl)
-  if(length(cl.big)==0){
+  if(length(cl.big)<=1){
     return(NULL)
   }
   if(length(bad.cl) > 0){
@@ -397,138 +305,6 @@ knn_joint <- function(comb.dat, ref.sets=names(comb.dat$dat.list), select.sets= 
 
 
 
-sim_knn <- function(sim, k=15)
-{
-  
-  th =  rowOrderStats(as.matrix(sim), which=ncol(sim)-k+1)
-  select = sim >= th
-  knn.idx = t(apply(select, 1, function(x)head(which(x),k)))
-  return(knn.idx)
-}
-
-knn_cor <- function(ref.dat, query.dat, k = 15)
-{
-  #sim = cor(as.matrix(query.dat), as.matrix(ref.dat), use="pairwise.complete.obs")
-  sim = cor(as.matrix(query.dat), as.matrix(ref.dat))
-  sim[is.na(sim)] = 0
-  knn.idx = sim_knn(sim, k=k)
-  return(knn.idx)
-}
-
-knn_cosine <- function(ref.dat, query.dat, k = 15)
-  {
-    library(qlcMatrix)
-    sim=cosSparse(query.dat, ref.dat)
-    sim[is.na(sim)] = 0
-    knn.idx = sim_knn(sim, k=k)
-    return(knn.idx)
-  }
-
-
-jaccard2 <- function(m) {
-  library(Matrix)
-  
-  ## common values:
-  A <-  tcrossprod(m)
-  B <- as(A, "dgTMatrix")
-  
-  ## counts for each row
-  b <- Matrix::rowSums(m)  
-  
-   
-  ## Jacard formula: #common / (#i + #j - #common)
-  x = B@x / (b[B@i+1] + b[B@j+1] - B@x)
-  B@x = x
-  return(B)
-}
-
-
-knn_jaccard <- function(knn.index)
-  {
-    knn.df = data.frame(i = rep(1:nrow(knn.index), ncol(knn.index)), j=as.vector(knn.index))
-    knn.mat = sparseMatrix(i = knn.df[[1]], j=knn.df[[2]], x=1)
-    sim= jaccard2(knn.mat)
-    row.names(sim) = colnames(sim) = row.names(knn.index)
-    return(sim)
-  }
-
-
-knn_jaccard_louvain <- function(knn.index)
-  {
-    require(igraph)
-    cat("Get jaccard\n")
-    sim=knn_jaccard(knn.index)
-    cat("Louvain clustering\n")
-    gr <- igraph::graph.adjacency(sim, mode = "undirected", 
-                                  weighted = TRUE)
-    result <- igraph::cluster_louvain(gr)
-    return(result)
-  }
-
-knn_jaccard_leiden <- function(knn.index)
-  {
-    require(igraph)
-    require(leiden)
-    cat("Get jaccard\n")
-    sim=knn_jaccard(knn.index)
-    cat("leiden clustering\n")
-    result <- leiden(sim)
-    return(result)
-  }
-
-
-predict_knn <- function(knn.idx, reference, cl)
-  {
-    query = row.names(knn.idx)
-    df = data.frame(nn=as.vector(knn.idx), query=rep(row.names(knn.idx), ncol(knn.idx)))
-    df$nn.cl = cl[reference[df$nn]]
-    tb=with(df, table(query, nn.cl))
-    tb = tb/ncol(knn.idx)
-    pred.cl = setNames(colnames(tb)[apply(tb, 1, which.max)], row.names(tb))
-    pred.score = setNames(rowMaxs(tb), row.names(tb))
-    pred.df = data.frame(pred.cl, pred.score)
-    return(list(pred.df=pred.df, pred.prob = tb))
-  }
-
-
-
-
-impute_knn_old <- function(knn.idx, reference, dat)
-  {
-    query = row.names(knn.idx)
-    impute.dat= sapply(1:ncol(dat), function(x){
-      print(x)
-      tmp.dat = sapply(1:ncol(knn.idx), function(i){
-        dat[reference[knn.idx[,i]],x]
-      })
-      rowMeans(tmp.dat, na.rm=TRUE)
-    })
-    impute.dat = impute.dat / ncol(knn.idx)
-    row.names(impute.dat) = row.names(knn.idx)
-    colnames(impute.dat) = colnames(dat)
-    return(impute.dat)
-  }
-
-
-impute_knn <- function(knn.idx, reference, dat)
-  {
-    query = row.names(knn.idx)
-    impute.dat= matrix(0, nrow=nrow(knn.idx),ncol=ncol(dat))    
-    k = rep(0, nrow(knn.idx))
-    for(i in 1:ncol(knn.idx)){
-      print(i)
-      nn = reference[knn.idx[,i]]
-      ###Ignore the neighbors not present in imputation reference
-      select = nn %in% row.names(dat)
-      impute.dat[select,]= impute.dat[select,] +  dat[nn[select],]
-      k[select] = k[select]+1
-    }
-    impute.dat = impute.dat / k
-    row.names(impute.dat) = row.names(knn.idx)
-    colnames(impute.dat) = colnames(dat)
-    return(impute.dat)
-  }
-
  
 
 harmonize_big <- function(comb.dat, prefix, overwrite=TRUE, dir="./",...)
@@ -542,7 +318,7 @@ harmonize_big <- function(comb.dat, prefix, overwrite=TRUE, dir="./",...)
       }
 
     }
-    result = knn_joint(comb.dat, ...)
+    result = knn_joint_big(comb.dat, ...)
     save(result, file=fn)
     if(is.null(result)){
       return(NULL)
@@ -605,92 +381,6 @@ i_harmonize_big<- function(comb.dat, select.cells=comb.dat$all.cells, ref.sets=n
   }
 
 
-
-merge_knn_result <- function(split.results)
-  {
-    ref.cells = unlist(lapply(split.results, function(x)x$ref.cells))
-    ref.cells = ref.cells[!duplicated(ref.cells)]
-    markers =  unique(unlist(lapply(split.results, function(x)x$markers)))
-    n.cl = 0
-    cl = NULL
-    cl.df = NULL
-    knn = NULL
-    knn.merge= NULL
-    for(result in split.results){
-      tmp.cl = setNames(as.integer(as.character(result$cl)) + n.cl, names(result$cl))
-      tmp.cl.df = result$cl.df
-      row.names(tmp.cl.df) = as.integer(row.names(tmp.cl.df)) + n.cl 
-      cl = c(cl, tmp.cl)
-      cl.df = rbind(cl.df, tmp.cl.df)
-      n.cl = max(as.integer(as.character(cl)))
-      orig.index = match(result$ref.cells, ref.cells)
-      tmp.knn = result$knn[names(tmp.cl),]
-      tmp.knn = matrix(orig.index[tmp.knn], nrow=nrow(tmp.knn))
-      knn = rbind(knn, tmp.knn)
-      tmp.knn = result$knn.merge[names(tmp.cl),]
-      tmp.knn = matrix(orig.index[tmp.knn], nrow=nrow(tmp.knn))
-      knn.merge = rbind(knn.merge, tmp.knn)
-    }
-    new.result = list(cl = as.factor(cl), cl.df = cl.df, markers=markers, knn=knn, ref.cells =ref.cells, knn.merge = knn.merge)
-    return(new.result)
-  }
-
-
-
-
-
-
-
-plot_markers_cl <- function(select.genes, gene.ordered=FALSE, cl.means.list = NULL, comb.dat=NULL, cl=NULL, cl.col=NULL, prefix="",...)
-  {
-    jet.colors <-colorRampPalette(c("#00007F", "blue", "#007FFF", "cyan","#7FFF7F", "yellow", "#FF7F00", "red", "#7F0000"))
-    blue.red <-colorRampPalette(c("blue", "white", "red"))
-    if(is.null(cl.means.list)){
-      cl.means.list=get_cl_means_list(comb.dat, select.genes)
-    }
-    else{
-      cl.means.list = sapply(cl.means.list, function(x)x[select.genes,],simplify=F)
-    }
-    if(!gene.ordered){
-      gene.hc = hclust(dist(cl.means.list[[1]]), method="ward.D")
-      select.genes = select.genes[gene.hc$order]
-    }
-    if(is.null(cl.col)){
-      cl.col = jet.colors(length(unique(cl)))
-    }
-    cl.col = matrix(cl.col, nrow=1)
-    colnames(cl.col) = levels(cl)
-    pdf(paste0(prefix, ".cl.heatmap.pdf"),...)
-    for(set in names(cl.means.list)){
-      dat = cl.means.list[[set]][select.genes, ]
-      cexCol = min(70/ncol(dat),1)
-      cexRow = min(60/nrow(dat),1)
-      heatmap.3(dat, Rowv=NULL, Colv=NULL, col=blue.red(100), trace="none",dendrogram="none", cexCol=cexCol, cexRow=cexRow, ColSideColors = cl.col, main=set)
-    }
-    dev.off()
-  }
-
-
-simple_dend <- function(cl.means.list)
-{
-  levels = unique(unlist(lapply(cl.means.list, colnames)))
-  n.counts = tmp.cor=matrix(0, nrow=length(levels), ncol=length(levels))
-  row.names(n.counts) = row.names(tmp.cor)=levels
-  colnames(n.counts)=colnames(tmp.cor)=levels
-  for(x in cl.means.list){
-    tmp.cor[colnames(x),colnames(x)] = cor(x)
-    n.counts[colnames(x),colnames(x)] =   n.counts[colnames(x),colnames(x)] +1
-  }
-  tmp.cor = tmp.cor/n.counts
-  hclust(as.dist(1-tmp.cor))
-}
-
-impute_val_cor <- function(dat, impute.dat)
-  {
-    gene.cor = pair_cor(dat, impute.dat)
-    gene.cor[is.na(gene.cor)] = 0
-    return(gene.cor)
-  }
 
 
 
@@ -773,35 +463,46 @@ impute_knn_recursive <- function(comb.dat, all.results, select.genes, select.cel
 
 #### assume within data modality have been performed
 ####
-impute_knn_global <- function(comb.dat, split.results, ref.dat.list, select.genes, select.cells, ref.sets=comb.dat$sets, sets=comb.dat$sets, rm.eigen=NULL)
+impute_knn_global_big<- function(comb.dat, split.results, select.genes, select.cells, ref.dat.list, ref.sets=names(ref.dat.list), sets=comb.dat$sets, rm.eigen=NULL, rm.th=0.7, verbose=FALSE,mc.cores=5, org.rd.dat.list=NULL)
   {
-    org.rd.dat.list <- list()
+
     knn.list <- list()
     impute.dat.list <- list()
-    ref.list <- list()
     ###Impute the reference dataset in the original space globally
-    for(x in ref.sets)
-      {
-        print(x)
-        tmp.cells= select.cells[comb.dat$meta.df[select.cells,"platform"]==x]
-        ref.cells = intersect(colnames(ref.dat.list[[x]]), tmp.cells)
-        ref.list[[x]]= ref.cells
-        rd.result <- rd_PCA_big(comb.dat$dat.list[[x]], ref.dat.list[[x]][select.genes,ref.cells], select.cells=tmp.cells, max.dim=50, th=0, rm.eigen=rm.eigen, ncores=10)
-        rd.dat  = rd.result$rd.dat
-        print(ncol(rd.dat))
+    if(is.null(org.rd.dat.list)){
+      org.rd.dat.list <- list()
+      for(x in ref.sets){
+          print(x)
+          ref.dat = ref.dat.list[[x]][select.genes, ]
+          tmp.cells = intersect(select.cells, comb.dat$dat.list[[x]]$col_id)
+          rd.result <- rd_PCA_big(comb.dat$dat.list[[x]], ref.dat, select.cells=tmp.cells, max.dim=100, th=0.5, ncores=mc.cores,method="elbow",verbose=verbose)
+          org.rd.dat.list[[x]] = rd.result
+        }
+    }
+    
+    for(x in ref.sets){
+        rd.dat  = org.rd.dat.list[[x]]$rd.dat
+        ref.cells=colnames(ref.dat.list[[x]])
+        if(!is.null(rm.eigen)){
+          rd.dat = filter_RD(rd.dat, rm.eigen, rm.th, verbose=verbose)
+        }
+        if(verbose){
+          print(ncol(rd.dat))
+        }
         knn.result <- RANN::nn2(data=rd.dat[ref.cells,], query=rd.dat, k=15)
         knn <- knn.result[[1]]
         row.names(knn) = row.names(rd.dat)    
-        org.rd.dat.list[[x]] = rd.result
         knn.list[[x]]=knn
-        knn = knn.list[[x]]
         impute.dat.list[[x]] <- impute_knn(knn, ref.cells, as.matrix(t(ref.dat.list[[x]][select.genes,ref.cells])))
       }
-    ###cross-modality Imputation based on nearest neighbors in each iteraction of clustering using anchoring genes or genes shown to be differentiall expressed. 
+    ###cross-modality Imputation based on nearest neighbors in each iteraction of clustering using anchoring genes or genes shown to be differentiall expressed.
+
     for(x in names(split.results)){
       print(x)
       result = split.results[[x]]
       cl = result$cl
+      knn = result$knn
+      
       for(ref.set in ref.sets){
         if(ref.set %in% names(result$ref.list)){
           tmp.cells = row.names(result$knn)
@@ -820,8 +521,8 @@ impute_knn_global <- function(comb.dat, split.results, ref.dat.list, select.gene
           }
           else{
             ref.cells = intersect(comb.dat$all.cells[unique(as.vector(knn[, select.cols]))],select.cells)            
-            knn = result$knn[query.cells,select.cols]
-            impute.dat = impute_knn(knn, comb.dat$all.cells, impute.dat.list[[ref.set]][ref.cells,impute.genes])
+            select.knn = result$knn[query.cells,select.cols]
+            impute.dat = impute_knn(select.knn, comb.dat$all.cells, impute.dat.list[[ref.set]][ref.cells,impute.genes])
           }
           if(!add.cells){
             impute.dat.list[[ref.set]][query.cells, impute.genes] <- impute.dat
@@ -834,7 +535,7 @@ impute_knn_global <- function(comb.dat, split.results, ref.dat.list, select.gene
         }
       }
     }
-    return(list(knn.list =knn.list, org.rd.dat.list = org.rd.dat.list,impute.dat.list=impute.dat.list, ref.list=ref.list))
+    return(list(knn.list =knn.list, org.rd.dat.list = org.rd.dat.list,impute.dat.list=impute.dat.list))
   }
 
 ##' .. content for \description{} (no empty lines) ..
