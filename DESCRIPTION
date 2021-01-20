@@ -1,7 +1,7 @@
 Package: scrattch.bigcat
 Title: Iterative Clustering Analysis for Transcriptomic data for big matrix
 Version: 0.0.1
-Authors@R: c(person("Zizhen Yao", "Developer", email = "zizheny@alleninstitute.org", role = c("aut","cre")))
+Authors@R: c(person("Zizhen", "Yao", role = c("aut","cre"),email = "zizheny@alleninstitute.org"))
 Maintainer: Zizhen Yao <"zizheny@alleninstitute.org">
 
 Description: Iteractive clustering pipeline for big single cell RNASeq dataset
