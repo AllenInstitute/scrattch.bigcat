@@ -165,9 +165,10 @@ rd_PCA_big <- function(big.dat, dat, select.cells, max.dim=10, th=2, verbose=TRU
 
 big_project <- function(big.dat, select.cells, rot, ncores=1,...)
   {
+    library(Matrix)
     project <- function(big.dat, cols, rot){
       dat = get_logNormal(big.dat, cols,...)[row.names(rot),]
-      dat = t(dat)  %*% rot      
+      dat = Matrix::crossprod(dat,rot)      
       row.names(dat) = row.names(dat)
       dat
     }
