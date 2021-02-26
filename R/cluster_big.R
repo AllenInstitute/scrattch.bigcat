@@ -68,15 +68,15 @@ convert_mat_list_big.dat_old<- function(mat.list, ...)
     return(big.dat)
   }
 
-big_dat_apply <- function(big.dat, cols, p.FUN, .combine="c",  ncores=1, block.size = 10000,...)
+big_dat_apply <- function(big.dat, cols, p.FUN, .combine="c",  mcores=1, block.size = 10000,...)
   {
     require(foreach)
     require(doParallel)
-    if (ncores == 1) {
+    if (mcores == 1) {
       registerDoSEQ()
     }
     else {
-      cl <- makeForkCluster(ncores)
+      cl <- makeForkCluster(mcores)
       doParallel::registerDoParallel(cl)
       on.exit(parallel::stopCluster(cl), add = TRUE)
     }
@@ -143,9 +143,9 @@ get_counts <- function(big.dat, cols, ...)
 
 
 
-rd_PCA_big <- function(big.dat, dat, select.cells, max.dim=10, th=2, verbose=TRUE, ncores=1,method="zscore")
+rd_PCA_big <- function(big.dat, dat, select.cells, max.dim=10, th=2, verbose=TRUE, mcores=1,method="zscore")
 {
-  tmp = get_PCA(dat, max.pca=max.dim, verbose=verbose,method=method,th=th)
+  system.time({tmp = get_PCA(dat, max.pca=max.dim, verbose=verbose,method=method,th=th)})
   if(is.null(tmp)){
     return(NULL)
   }
@@ -156,34 +156,35 @@ rd_PCA_big <- function(big.dat, dat, select.cells, max.dim=10, th=2, verbose=TRU
     if(verbose){
       print("project")
     }
-    rd.dat = big_project(big.dat, select.cells, rot, ncores=ncores)
+    system.time({rd.dat = big_project(big.dat, select.cells, rot, mcores=mcores)})
   }
   rm(rot)
   rm(dat)
   return(list(rd.dat=rd.dat, pca=pca))
 }
 
-big_project <- function(big.dat, select.cells, rot, ncores=1,...)
+big_project <- function(big.dat, select.cells, rot, mcores=1,...)
   {
-    project <- function(big.dat, cols, rot){
+    require(Matrix)
+    my_project <- function(big.dat, cols, rot){
       dat = get_logNormal(big.dat, cols,...)[row.names(rot),]
-      dat = t(dat)  %*% rot      
+      dat = Matrix::crossprod(dat, rot)
       row.names(dat) = row.names(dat)
+      gc()
       dat
     }
-    gc()
-    rd.dat= big_dat_apply(big.dat, select.cells, project, .combine="rbind",  ncores=ncores, rot=rot)
+    rd.dat= big_dat_apply(big.dat, select.cells, p.FUN=my_project, .combine="rbind",  mcores=mcores, rot=rot)
     rd.dat = as.matrix(rd.dat)
     return(rd.dat)
   }
 
 
-big_project2 <- function(big.dat, select.cells, rot, ncores=1)
+big_project2 <- function(big.dat, select.cells, rot, mcores=1)
   {
     cols=match(select.cells, big.dat$col_id)
     cols = sort(cols)
     rows = match(row.names(rot), big.dat$row_id)
-    rd.dat=big_cprodMat(big.dat$fbm, rot, ind.row=rows, ind.col=cols, ncores=ncores)
+    rd.dat=big_cprodMat(big.dat$fbm, rot, ind.row=rows, ind.col=cols, ncores=mcores)
     gc()
     rd.dat = as.matrix(rd.dat)
     colnames(rd.dat) = colnames(rot)
@@ -228,7 +229,7 @@ onestep_clust_big<- function(big.dat,
                              de.param = de_param(),
                              merge.type = c("undirectional", "directional"), 
                              maxGenes = 3000,
-                             sampleSize = 5000,
+                             sampleSize = 20000,
                              max.cl.size = 300,
                              k.nn=15,
                              prefix = NULL, 
@@ -244,13 +245,22 @@ onestep_clust_big<- function(big.dat,
     
     method=method[1]
     merge.type=merge.type[1]
+
     
     sampled = sample(select.cells, min(sampleSize, length(select.cells)))
-    counts = get_counts(big.dat, sampled,sparse=TRUE)
+    if(length(sampled) > length(select.cells)/2){
+      sampled = select.cells
+    }
+    if(is.null(counts) & sum(!sampled %in% colnames(counts))>0){
+      system.time({counts = get_counts(big.dat, sampled,sparse=TRUE)})
+    }
+    else{
+      counts = counts[,sampled]
+    }
     if(verbose){
       print("Find high variance genes")
-    }
-    vg = findVG(counts)
+    }    
+    system.time({vg = findVG(counts)})
     select.genes = with(vg, row.names(vg)[which(loess.padj < vg.padj.th | dispersion >3)])
     if(length(select.genes) < de.param$min.genes){
       return(NULL)
@@ -320,6 +330,7 @@ onestep_clust_big<- function(big.dat,
     }
     rm(rd.dat.t)
     rm(merge.result)
+    rm(counts)
     gc()
     return(result)
   }
@@ -348,6 +359,8 @@ iter_clust_big<- function(big.dat=NULL,
                           split.size = 10, 
                           result = NULL,
                           method = "auto",
+                          counts = NULL,
+                          sampleSize = 10000,
                           ...)
   {
     if(!is.null(prefix)) {
@@ -364,15 +377,27 @@ iter_clust_big<- function(big.dat=NULL,
     else{
       select.method=method
     }
+    counts = NULL
     if(is.null(result)){
-      result=onestep_clust_big(big.dat=big.dat, select.cells=select.cells, prefix=prefix,method=select.method, ...)
+      #if(is.null(counts)){
+      #  sampled = sample(select.cells, min(sampleSize, length(select.cells)))
+      #  if(length(sampled) > length(select.cells)/2){
+      #    sampled = select.cells
+      #  }
+      #  cat("Allocate count matrix",length(sampled),"\n")
+      #  counts = get_counts(big.dat, sampled,sparse=TRUE)
+      #}          
+      result=onestep_clust_big(big.dat=big.dat, select.cells=select.cells, prefix=prefix,method=select.method, counts=counts, sampleSize= sampleSize,...)      
+      #if(sum(!select.cells %in% colnames(counts))>0){
+      #  print("free count matrix")
+      #  rm(counts)
+      #  gc()
+      #  counts=NULL
+      #}
       if(is.null(result)){
         return(NULL)
       }
     }
-
-    select.cells= intersect(select.cells, names(result$cl))
-    
     cl = result$cl[select.cells]
     gene.mod = result$gene.mod
     markers=result$markers
@@ -389,7 +414,7 @@ iter_clust_big<- function(big.dat=NULL,
         }
         else{
           tmp.prefix = paste(prefix, x, sep=".")
-          tmp.result=iter_clust_big(big.dat=big.dat, select.cells=tmp.cells, prefix=tmp.prefix,split.size=split.size,method= method, ...)
+          tmp.result=iter_clust_big(big.dat=big.dat, select.cells=tmp.cells, prefix=tmp.prefix,split.size=split.size,method= method, counts=counts, sampleSize=sampleSize, ...)
           gc()
           if(is.null(tmp.result)){
             new.cl[tmp.cells]=n.cl

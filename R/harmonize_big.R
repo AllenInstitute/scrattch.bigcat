@@ -9,15 +9,17 @@ blue.red <-colorRampPalette(c("blue", "white", "red"))
 
 sample_cl_dat <- function(comb.dat, sets, cl, cl.sample.size=200)
   {
-    dat.list = with(comb.dat, sapply(sets, function(set){
-      select.cells = intersect(row.names(meta.df)[meta.df$platform==set], names(cl))
+    dat.list = sapply(sets, function(set){
+      print(set)
+      select.cells = intersect(row.names(comb.dat$meta.df)[comb.dat$meta.df$platform==set], names(cl))
       tmp.cl = cl[select.cells]
       if(is.factor(tmp.cl)){
         tmp.cl = droplevels(tmp.cl)
       }
       select.cells = sample_cells(tmp.cl,cl.sample.size)
-      get_logNormal(dat.list[[set]], select.cells, select.genes=common.genes)
-    },simplify=F))
+      print(length(select.cells))
+      get_logNormal(comb.dat$dat.list[[set]], select.cells, select.genes=comb.dat$common.genes)
+    },simplify=F)
     return(dat.list)
   }
 
@@ -169,7 +171,7 @@ select_joint_genes_big <-  function(comb.dat, ref.dat.list, select.cells = comb.
 ##' @param ... 
 ##' @return 
 ##' @author Zizhen Yao
-knn_joint_big <- function(comb.dat, ref.sets=names(comb.dat$dat.list), select.sets= names(comb.dat$dat.list), merge.sets=ref.sets, select.cells=comb.dat$all.cells, select.genes=NULL, method="cor", self.method = "RANN", k=15,  sample.size = 5000, cl.sample.size = 100, block.size = 10000, verbose=TRUE,ncores=1,...)
+knn_joint_big <- function(comb.dat, ref.sets=names(comb.dat$dat.list), select.sets= names(comb.dat$dat.list), merge.sets=ref.sets, select.cells=comb.dat$all.cells, select.genes=NULL, method="cor", self.method = "RANN", k=15,  sample.size = 50000, cl.sample.size = 100, jaccard.sample.size=50000, block.size = 10000, verbose=TRUE,ncores=1,...)
 {
   if(length(select.cells) < block.size){
     ncores=1
@@ -178,8 +180,7 @@ knn_joint_big <- function(comb.dat, ref.sets=names(comb.dat$dat.list), select.se
   with(comb.dat,{
   cat("Number of select cells", length(select.cells), "\n")
   cells.list = split(select.cells, meta.df[select.cells, "platform"])[select.sets]
-  cells.list =  sample_sets_list(cells.list, cl.list[names(cl.list) %in% select.sets], sample.size=sample.size, cl.sample.size = cl.sample.size)
-  ref.list = cells.list[ref.sets]
+  ref.list =  sample_sets_list(cells.list[ref.sets], cl.list[ref.sets], sample.size=sample.size, cl.sample.size = cl.sample.size)
   ref.sets = ref.sets[sapply(ref.list,length) >= sapply(de.param.list[ref.sets], function(x)x$min.cells)]
   if(length(ref.sets)==0){
     return(NULL)
@@ -217,10 +218,12 @@ knn_joint_big <- function(comb.dat, ref.sets=names(comb.dat$dat.list), select.se
         return(NULL)
       }
       if(set == ref.set & self.method=="RANN"){
+        print("PCA")
         rd.dat = rd_PCA_big(big.dat=dat.list[[set]],dat = ref.dat, select.cells=map.cells, max.dim = 50, th=1, ncores=ncores)$rd.dat
         if(is.null(rd.dat)){
           rd.dat = t(get_logNormal(dat.list[[set]],map.cells, select.genes=row.names(ref.dat)))
         }
+        print("RANN")
         knn = RANN::nn2(rd.dat[colnames(ref.dat),,drop=F] , rd.dat[map.cells,,drop=F], k=k.tmp)[[1]]
         row.names(knn) = map.cells
       }
@@ -229,15 +232,14 @@ knn_joint_big <- function(comb.dat, ref.sets=names(comb.dat$dat.list), select.se
           dat = get_logNormal(big.dat, cols, select.genes=row.names(ref.dat),sparse=FALSE, keep.col=FALSE)
           get_knn(dat=dat, ref.dat, ...)
         }, ref.dat=ref.dat, k=k.tmp, method=method, ncores=ncores)
-        
-                                        #knn=get_knn_batch(big.dat = dat.list[[set]], select.cells= map.cells, select.genes=select.genes, ref.dat = ref.dat, k=k.tmp, method = self.method, batch.size = batch.size)
       }
-      if(!is.null(cl.list)){
-        test.knn = test_knn(knn, cl.list[[set]], colnames(ref.dat), cl.list[[ref.set]])
-        if(!is.null(test.knn)){
-          cat("Knn", set, ref.set, method, "cl.score", test.knn$cl.score, "cell.score", test.knn$cell.score,"\n")
-        }
-      }
+      #if(!is.null(cl.list)){
+        #print("test knn")
+        #test.knn = test_knn(knn, cl.list[[set]], colnames(ref.dat), cl.list[[ref.set]])
+        #if(!is.null(test.knn)){
+        #  cat("Knn", set, ref.set, method, "cl.score", test.knn$cl.score, "cell.score", test.knn$cell.score,"\n")
+        #}
+      #}
       idx = match(colnames(ref.dat), all.cells)
       tmp.cells = row.names(knn)
       knn = matrix(idx[knn], nrow=nrow(knn))
@@ -248,19 +250,22 @@ knn_joint_big <- function(comb.dat, ref.sets=names(comb.dat$dat.list), select.se
   #########
   #save(knn.comb, file="knn.comb.rda")
   sampled.cells = unlist(cells.list)
+  if(length(sampled.cells)> jaccard.sample.size){
+    tmp.list =  sample_sets_list(cells.list, cl.list[names(cl.list) %in% select.sets], sample.size=jaccard.sample.size, cl.sample.size = cl.sample.size)
+    sampled.cells = unlist(tmp.list)
+  }
   #result = knn_jaccard_leiden(knn.comb[sampled.cells,])
   result = knn_jaccard_louvain(knn.comb[sampled.cells,])
   result$cl.mat = t(result$memberships)
   row.names(result$cl.mat) = sampled.cells
   result$knn = knn.comb
   result$ref.list = ref.list
-  save(result, file="result.rda")
   cl = setNames(result$cl.mat[,1], row.names(result$cl.mat))
   if(length(cl) < nrow(result$knn)){
-    pred.df = predict_knn(result$knn, all.cells, cl)$pred.df
+    diff.cells = setdiff(row.names(result$knn), names(cl))
+    pred.df = predict_knn_small(result$knn[diff.cells,,drop=F], all.cells, cl )$pred.df
     pred.cl= setNames(as.character(pred.df$pred.cl), row.names(pred.df))
     cl = c(cl, pred.cl[setdiff(names(pred.cl), names(cl))])
-    #cl = pred.cl
   }
   cl.platform.counts = table(meta.df[names(cl), "platform"],cl)
   print(cl.platform.counts)
@@ -277,7 +282,7 @@ knn_joint_big <- function(comb.dat, ref.sets=names(comb.dat$dat.list), select.se
     print("Bad.cl")
     print(bad.cl)
     tmp.cells = names(cl)[cl %in% bad.cl]
-    pred.prob = predict_knn(knn.comb[tmp.cells,,drop=F], comb.dat$all.cells, cl)$pred.prob
+    pred.prob = predict_knn_small(knn.comb[tmp.cells,,drop=F], comb.dat$all.cells, cl)$pred.prob
     pred.prob = pred.prob[,!colnames(pred.prob)%in% bad.cl,drop=F]
     pred.cl = colnames(pred.prob)[apply(pred.prob, 1, which.max)]
     cl[tmp.cells]= pred.cl
@@ -290,7 +295,7 @@ knn_joint_big <- function(comb.dat, ref.sets=names(comb.dat$dat.list), select.se
     sampled.cells = sample_cells(cl[tmp.cells],200)
     get_logNormal(comb.dat$dat.list[[x]], sampled.cells, select.genes=common.genes)
   },simplify=F)
-
+  
   cl= merge_cl_multiple(comb.dat=comb.dat, merge.dat.list=merge.dat.list, cl=cl, anchor.genes=select.genes)
   if(length(unique(cl))<=1){
     return(NULL)
@@ -342,7 +347,7 @@ harmonize_big <- function(comb.dat, prefix, overwrite=TRUE, dir="./",...)
 ##' @param ... 
 ##' @return 
 ##' @author Zizhen Yao
-i_harmonize_big<- function(comb.dat, select.cells=comb.dat$all.cells, ref.sets=names(comb.dat$dat.list), prefix="", result=NULL, overwrite=TRUE, ...)
+i_harmonize_big<- function(comb.dat, select.cells=comb.dat$all.cells, ref.sets=names(comb.dat$dat.list), prefix="", result=NULL, overwrite=TRUE, iter.mc.cores=1,...)
   {
     
     #attach(comb.dat)
@@ -372,10 +377,11 @@ i_harmonize_big<- function(comb.dat, select.cells=comb.dat$all.cells, ref.sets=n
         else{
           tmp.result = NULL
         }
+        tmp.result
       })
       if(!is.null(tmp.result)){
         all.results[names(tmp.result)] = tmp.result
-      }           
+      }   
     }
     return(all.results)
   }
