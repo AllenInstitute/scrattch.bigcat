@@ -168,7 +168,7 @@ big_project <- function(big.dat, select.cells, rot, mcores=1,...)
     require(Matrix)
     my_project <- function(big.dat, cols, rot){
       dat = get_logNormal(big.dat, cols,...)[row.names(rot),]
-      dat = Matrix::crossprod(dat, rot)
+      dat = Matrix::crossprod(dat, rot)      
       row.names(dat) = row.names(dat)
       gc()
       dat
