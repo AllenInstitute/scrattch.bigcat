@@ -435,3 +435,16 @@ iter_clust_big<- function(big.dat=NULL,
     return(result)
   }
 
+
+
+iter_clust_merge_big <- function(big.dat, select.cells=big.dat$col_id, merge.type="undirectional", de.param = de_param(), max.cl.size = 300,...)
+{
+  result <- scrattch.hicat::iter_clust_big(big.dat=big.dat, select.cells=select.cells, de.param = de.param, merge.type=merge.type, ...)
+  cl = result$cl
+  markers = result$markers
+  tmp.cells = sample_cells(cl, max.cl.size)
+  norm.dat = get_logNormal(big.dat, tmp.cells)
+  merge.result= merge_cl(norm.dat=norm.dat, cl=cl, rd.dat.t=norm.dat[markers,], de.param = de.param, merge.type=merge.type, return.markers=FALSE)
+  return(merge.result)
+}
+
