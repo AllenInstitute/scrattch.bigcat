@@ -162,7 +162,7 @@ iter_consensus_clust_big <- function(cl.list, co.ratio=NULL,  cl.mat=NULL, big.d
   return(list(cl=cl, markers=markers))
 }
 
-map_result <- function(big.dat, cl.dat, test.cells, ncores=1, block.size=20000)
+map_result <- function(big.dat, cl.dat, test.cells, mcores=1, block.size=20000)
   {
     map <- function(big.dat, cols, cl.dat)
       {
@@ -174,7 +174,7 @@ map_result <- function(big.dat, cl.dat, test.cells, ncores=1, block.size=20000)
         test.cl <- setNames(colnames(test.cl.cor)[max.cl.cor], colnames(test.dat))
         return(test.cl)
       }
-    test.cl = big_dat_apply(big.dat, cols=test.cells, map, .combine="c",  ncores=ncores, block.size = block.size, cl.dat = cl.dat)
+    test.cl = big_dat_apply(big.dat, cols=test.cells, map, .combine="c",  mcores=mcores, block.size = block.size, cl.dat = cl.dat)
   }
 
 run_consensus_clust_big <- function(big.dat=NULL, select.cells=big.dat$col_id, niter=100, iter=1:niter, sample.frac=0.8,  mc.cores=1, co.result = NULL,  output_dir="subsample_result",de.param=de_param(),merge.type=c("undirectional","directional"), override=FALSE, init.result=NULL, method="auto",max.cl.size = 200,verbose=FALSE, ...)

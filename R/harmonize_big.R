@@ -171,10 +171,10 @@ select_joint_genes_big <-  function(comb.dat, ref.dat.list, select.cells = comb.
 ##' @param ... 
 ##' @return 
 ##' @author Zizhen Yao
-knn_joint_big <- function(comb.dat, ref.sets=names(comb.dat$dat.list), select.sets= names(comb.dat$dat.list), merge.sets=ref.sets, select.cells=comb.dat$all.cells, select.genes=NULL, method="cor", self.method = "RANN", k=15,  sample.size = 50000, cl.sample.size = 100, jaccard.sample.size=50000, block.size = 10000, verbose=TRUE,ncores=1,...)
+knn_joint_big <- function(comb.dat, ref.sets=names(comb.dat$dat.list), select.sets= names(comb.dat$dat.list), merge.sets=ref.sets, select.cells=comb.dat$all.cells, select.genes=NULL, method="cor", self.method = "RANN", k=15,  sample.size = 50000, cl.sample.size = 100, jaccard.sample.size=50000, block.size = 10000, verbose=TRUE,mcores=1,...)
 {
   if(length(select.cells) < block.size){
-    ncores=1
+    mcores=1
   }
   #attach(comb.dat)
   with(comb.dat,{
@@ -219,7 +219,7 @@ knn_joint_big <- function(comb.dat, ref.sets=names(comb.dat$dat.list), select.se
       }
       if(set == ref.set & self.method=="RANN"){
         print("PCA")
-        rd.dat = rd_PCA_big(big.dat=dat.list[[set]],dat = ref.dat, select.cells=map.cells, max.dim = 50, th=1, ncores=ncores)$rd.dat
+        rd.dat = rd_PCA_big(big.dat=dat.list[[set]],dat = ref.dat, select.cells=map.cells, max.dim = 50, th=1, mcores=mcores)$rd.dat
         if(is.null(rd.dat)){
           rd.dat = t(get_logNormal(dat.list[[set]],map.cells, select.genes=row.names(ref.dat)))
         }
@@ -231,7 +231,7 @@ knn_joint_big <- function(comb.dat, ref.sets=names(comb.dat$dat.list), select.se
         knn = big_dat_apply(big.dat = dat.list[[set]], map.cells, .combine="rbind", block.size=block.size, p.FUN=function(big.dat, cols, ref.dat, ...){
           dat = get_logNormal(big.dat, cols, select.genes=row.names(ref.dat),sparse=FALSE, keep.col=FALSE)
           get_knn(dat=dat, ref.dat, ...)
-        }, ref.dat=ref.dat, k=k.tmp, method=method, ncores=ncores)
+        }, ref.dat=ref.dat, k=k.tmp, method=method, mcores=mcores)
       }
       #if(!is.null(cl.list)){
         #print("test knn")
@@ -481,7 +481,7 @@ impute_knn_global_big<- function(comb.dat, split.results, select.genes, select.c
           print(x)
           ref.dat = ref.dat.list[[x]][select.genes, ]
           tmp.cells = intersect(select.cells, comb.dat$dat.list[[x]]$col_id)
-          rd.result <- rd_PCA_big(comb.dat$dat.list[[x]], ref.dat, select.cells=tmp.cells, max.dim=100, th=0.5, ncores=mc.cores,method="elbow",verbose=verbose)
+          rd.result <- rd_PCA_big(comb.dat$dat.list[[x]], ref.dat, select.cells=tmp.cells, max.dim=100, th=0.5, mcores=mc.cores,method="elbow",verbose=verbose)
           org.rd.dat.list[[x]] = rd.result
         }
     }
