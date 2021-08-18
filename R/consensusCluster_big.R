@@ -1,3 +1,54 @@
+iter_clust_merge_big<- function(big.dat, select.cells, de.param, merge.type, max.cl.size = 200,...)
+{
+  result <- iter_clust_big(big.dat = big.dat,  select.cells=select.cells, de.param = de.param, merge.type=merge.type, ...)  
+  tmp.cells = sample_cells(result$cl, max.cl.size)
+  norm.dat = get_logNormal(big.dat, tmp.cells)
+  result=merge_cl(norm.dat, cl=result$cl, rd.dat.t = norm.dat[result$markers,], merge.type=merge.type, de.param=de.param, max.cl.size=max.cl.size)
+  return(result)
+}
+
+run_iter_clust_merge_big <- function(big.dat, iter, output_dir="subsample_result", all.cells=big.dat$col_id, prefix="all", de.param=de_param(), merge.type="undirectional", sample.frac = 0.8, init.result=NULL, mc.cores=1, override=FALSE)
+  {
+    run <- function(i,...){
+      prefix = paste("iter",i,sep=".")
+      print(prefix)
+      library(Matrix)
+      outfile= file.path(output_dir, paste0("result.",i,".rda"))
+      if(file.exists(outfile)& !override){
+        return(NULL)
+      }
+      select.cells=sample(all.cells, round(length(all.cells)*sample.frac))
+      save(select.cells, file=file.path(output_dir, paste0("cells.",i,".rda")))
+      
+      result <- scrattch.hicat::iter_clust_merge_big(big.dat, select.cells=select.cells,prefix=prefix, de.param = de.param, merge.type=merge.type, result=init.result, ...)
+      test.cells = setdiff(all.cells, names(result$cl))
+      if(length(test.cells)>0){
+        cl= result$cl              
+        train.cells = sample_cells(cl, max.cl.size)
+        train.norm.dat =  get_logNormal(big.dat, train.cells)[result$markers,,drop=F]
+        cl.dat <- get_cl_means(train.norm.dat, cl[train.cells])
+        test.cl = map_result(big.dat, cl.dat, test.cells)
+        result$test.cl=test.cl
+      }
+      save(result, file=outfile)
+    }
+    if(!dir.exists(output_dir)){
+      dir.create(output_dir)
+    }    
+    if (mc.cores==1){
+      sapply(iter, function(i){run(i,...)})
+    }
+    else{     
+      require(doMC)
+      require(foreach)
+      registerDoMC(cores=mc.cores)
+      foreach::foreach(i=iter,.packages=c("scrattch.hicat","Matrix"), .combine='c') %dopar% { run(i) }
+    }
+  }
+
+
+
+
 iter_consensus_clust_big <- function(cl.list, co.ratio=NULL,  cl.mat=NULL, big.dat=NULL,  select.cells=names(cl.list[[1]]), diff.th=0.25, prefix=NULL, method=c("auto", "louvain","ward.D"), verbose=FALSE, de.param = de.param, max.cl.size = 200, result=NULL, split.size = de.param$min.cells*2,merge.type=c("undirectional", "directional"))
 {
   method=method[1]
@@ -187,57 +238,7 @@ run_consensus_clust_big <- function(big.dat=NULL, select.cells=big.dat$col_id, n
     all.cells= intersect(all.cells, names(init.result$cl))
   }
   if(is.null(co.result)){
-    for(i in iter){
-      outfile= file.path(output_dir, paste0("result.",i,".rda"))
-      if(file.exists(outfile)& !override){
-        next
-      }
-      if(!is.null(sample.frac)){
-        select.cells=sample(all.cells, round(length(all.cells)*sample.frac))
-      }
-      else{
-        select.cells = all.cells
-      }
-      save(select.cells, file=file.path(output_dir, paste0("cells.",i,".rda")))
-    }
-    
-    run <- function(i,all.cells, ...){
-      library(scrattch.hicat)
-      #source("~/zizhen/My_R/scrattch.bigcat/R/cluster_big.R")
-      #source("~/zizhen/My_R/scrattch.bigcat/R/consensusCluster_big.R")      
-      prefix = paste("iter",i,sep=".")
-      print(prefix)
-      outfile= file.path(output_dir, paste0("result.",i,".rda"))
-      if(file.exists(outfile)& !override){
-        return(NULL)
-      }
-      load(file.path(output_dir, paste0("cells.",i,".rda")))
-      result <- iter_clust_big(big.dat = big.dat,  select.cells=select.cells, prefix=prefix, de.param = de.param, merge.type=merge.type, result=init.result, verbose=verbose, ...)
-      #save(result, file=outfile)
-      #load(outfile)
-      ###Test on remaining cells
-      test.cells = setdiff(all.cells, names(result$cl))
-      if(length(test.cells)>0){
-        cl= result$cl              
-        train.cells = sample_cells(cl, max.cl.size)
-        train.norm.dat =  get_logNormal(big.dat, train.cells)[result$markers,,drop=F]
-        cl.dat <- get_cl_means(train.norm.dat, cl[train.cells])
-        test.cl = map_result(big.dat, cl.dat, test.cells)
-        result$test.cl=test.cl
-      }
-      save(result, file=outfile)
-    }
-    if (mc.cores==1){
-      sapply(iter, function(i){run(i,all.cells,...)})
-    }
-    else{
-      require(foreach)
-      require(doParallel)
-      cl <- makeCluster(mc.cores)
-      registerDoParallel(cl)
-      foreach(i=iter, .combine='c') %dopar% run(i,all.cells,...)
-      stopCluster(cl)
-    }  
+    tmp=run_iter_clust_merge_big(big.dat, iter=iter, output_dir="subsample_result", all.cells=all.cells, de.param=de.param, merge.type=merge.type, sample.frac = sample.frac, init.result=init.result, mc.cores=mc.cores, override=override)    
     result.files= file.path(output_dir, dir(output_dir, pattern="result.*.rda"))
     co.result <- collect_subsample_cl_matrix_big(big.dat,result.files,all.cells)
   }
@@ -261,6 +262,8 @@ run_consensus_clust_big <- function(big.dat=NULL, select.cells=big.dat$col_id, n
 }
 
 
+
+
 collect_subsample_cl_matrix_big <- function(big.dat,result.files,all.cells, max.cl.size=NULL,mc.cores=1)
 {
   select.cells=c()
@@ -276,7 +279,7 @@ collect_subsample_cl_matrix_big <- function(big.dat,result.files,all.cells, max.
         train.cells = sample_cells(result$cl, 100)
         train.norm.dat =  get_logNormal(big.dat, train.cells)[result$markers,]
         cl.dat <- get_cl_means(train.norm.dat, result$cl[train.cells])   
-        result$test.cl = map_result(big.dat, cl.dat, test.cells)
+        result$test.cl = map_result(big.dat, cl.dat, test.cells, mc.cores=mc.cores)
         save(result, file=f)
       }
       all.cl = with(result, c(all.cl, setNames(as.character(test.cl), names(test.cl))))

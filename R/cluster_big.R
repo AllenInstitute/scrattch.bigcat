@@ -3,7 +3,7 @@ convert_big.dat <- function(mat, logNormal=TRUE, backingfile=file.path(getwd(), 
   {
     library(bigstatsr)
     m = FBM(nrow=nrow(mat),ncol=ncol(mat),backingfile=backingfile, ...)
-    ind_nozero <- which(mat != 0, arr.ind = TRUE)
+    ind_nozero <- Matrix::which(mat != 0L, arr.ind = TRUE)
     m[ind_nozero] <- mat[ind_nozero]
     big.dat = list(fbm=m, row_id = row.names(mat), col_id = colnames(mat))
     big.dat$logNormal = logNormal
@@ -99,10 +99,10 @@ get_cols <- function(big.dat, cols, keep.col=TRUE, sparse=TRUE)
       id = cols
     }
     ord = order(id)
-
     mat = big.dat$fbm[,id[ord],drop=F]
-    if(keep.col){
-      org.order = (1:length(id))[order(ord)]    
+    is.ordered=all(ord == 1:length(ord))    
+    if(keep.col & !is.ordered){
+      org.order = (1:length(id))[order(ord)]
       mat = mat[,org.order,drop=F]
       colnames(mat) = big.dat$col_id[id]      
     }
@@ -143,7 +143,7 @@ get_counts <- function(big.dat, cols, ...)
 
 
 
-rd_PCA_big <- function(big.dat, dat, select.cells, max.dim=10, th=2, verbose=TRUE, mcores=1,method="zscore")
+rd_PCA_big <- function(big.dat, dat, select.cells, max.dim=10, th=2, verbose=TRUE, mc.cores=1,method="zscore")
 {
   system.time({tmp = get_PCA(dat, max.pca=max.dim, verbose=verbose,method=method,th=th)})
   if(is.null(tmp)){
@@ -156,7 +156,7 @@ rd_PCA_big <- function(big.dat, dat, select.cells, max.dim=10, th=2, verbose=TRU
     if(verbose){
       print("project")
     }
-    system.time({rd.dat = big_project(big.dat, select.cells, rot, mcores=mcores)})
+    system.time({rd.dat = big_project(big.dat, select.cells, rot, mcores=mc.cores)})
   }
   rm(rot)
   rm(dat)
@@ -233,15 +233,10 @@ onestep_clust_big<- function(big.dat,
                              max.cl.size = 300,
                              k.nn=15,
                              prefix = NULL, 
-                             verbose = FALSE, overwrite=FALSE)
+                             verbose = FALSE)
                             
   {
     library(matrixStats)
-    outfile=paste0(prefix, ".rda")
-    if(file.exists(outfile) & !overwrite){
-      load(outfile)
-      return(result)
-    }
     
     method=method[1]
     merge.type=merge.type[1]
@@ -260,7 +255,7 @@ onestep_clust_big<- function(big.dat,
     if(verbose){
       print("Find high variance genes")
     }    
-    system.time({vg = findVG(counts)})
+    system.time({vg = find_vg(counts)})
     select.genes = with(vg, row.names(vg)[which(loess.padj < vg.padj.th | dispersion >3)])
     if(length(select.genes) < de.param$min.genes){
       return(NULL)
@@ -316,7 +311,6 @@ onestep_clust_big<- function(big.dat,
     norm.dat = get_logNormal(big.dat, sampled.cells)
     merge.result=merge_cl(norm.dat, cl=cl, rd.dat=rd.dat, merge.type=merge.type, de.param=de.param, max.cl.size=max.cl.size, verbose=verbose)
     rm(norm.dat)
-    gc()
     if(is.null(merge.result)){
       return(NULL)
     }
@@ -324,17 +318,12 @@ onestep_clust_big<- function(big.dat,
     de.genes = merge.result$de.genes
     markers= merge.result$markers
     result=list(cl=cl, markers=markers)
-
-    if(verbose){
-      save(result, file=outfile)
-    }
     rm(rd.dat.t)
     rm(merge.result)
     rm(counts)
     gc()
     return(result)
   }
-
 
 
 #' Iterative clustering algorithm for single cell RNAseq dataset
@@ -377,23 +366,8 @@ iter_clust_big<- function(big.dat=NULL,
     else{
       select.method=method
     }
-    counts = NULL
     if(is.null(result)){
-      #if(is.null(counts)){
-      #  sampled = sample(select.cells, min(sampleSize, length(select.cells)))
-      #  if(length(sampled) > length(select.cells)/2){
-      #    sampled = select.cells
-      #  }
-      #  cat("Allocate count matrix",length(sampled),"\n")
-      #  counts = get_counts(big.dat, sampled,sparse=TRUE)
-      #}          
       result=onestep_clust_big(big.dat=big.dat, select.cells=select.cells, prefix=prefix,method=select.method, counts=counts, sampleSize= sampleSize,...)      
-      #if(sum(!select.cells %in% colnames(counts))>0){
-      #  print("free count matrix")
-      #  rm(counts)
-      #  gc()
-      #  counts=NULL
-      #}
       if(is.null(result)){
         return(NULL)
       }
@@ -414,7 +388,14 @@ iter_clust_big<- function(big.dat=NULL,
         }
         else{
           tmp.prefix = paste(prefix, x, sep=".")
-          tmp.result=iter_clust_big(big.dat=big.dat, select.cells=tmp.cells, prefix=tmp.prefix,split.size=split.size,method= method, counts=counts, sampleSize=sampleSize, ...)
+          if(length(tmp.cells) < 50000){
+            norm.dat = get_logNormal(big.dat, tmp.cells)
+            tmp.result=iter_clust(norm.dat=norm.dat, select.cells=tmp.cells, prefix=tmp.prefix,split.size=split.size,method= method, counts=counts, sampleSize=sampleSize, ...)
+            rm(norm.dat)
+          }
+          else{
+            tmp.result=iter_clust_big(big.dat=big.dat, select.cells=tmp.cells, prefix=tmp.prefix,split.size=split.size,method= method, counts=counts, sampleSize=sampleSize, ...)
+          }
           gc()
           if(is.null(tmp.result)){
             new.cl[tmp.cells]=n.cl
@@ -439,7 +420,7 @@ iter_clust_big<- function(big.dat=NULL,
 
 iter_clust_merge_big <- function(big.dat, select.cells=big.dat$col_id, merge.type="undirectional", de.param = de_param(), max.cl.size = 300,...)
 {
-  result <- scrattch.hicat::iter_clust_big(big.dat=big.dat, select.cells=select.cells, de.param = de.param, merge.type=merge.type, ...)
+  result <- iter_clust_big(big.dat=big.dat, select.cells=select.cells, de.param = de.param, merge.type=merge.type, ...)
   cl = result$cl
   markers = result$markers
   tmp.cells = sample_cells(cl, max.cl.size)
@@ -448,3 +429,50 @@ iter_clust_merge_big <- function(big.dat, select.cells=big.dat$col_id, merge.typ
   return(merge.result)
 }
 
+
+
+get_cols_delayedArray <- function(big.dat_delayedArray, cols, keep.col=TRUE, sparse=TRUE)
+{
+  library(Matrix)
+  if(is.character(cols)){
+    id = match(cols, colnames(big.dat_delayedArray))
+  }
+  else{
+    id = cols
+  }
+  ord = order(id)
+  
+  mat = big.dat_delayedArray[,id[ord],drop=F]
+  if(keep.col){
+    org.order = (1:length(id))[order(ord)]    
+    mat = mat[,org.order,drop=F]
+    colnames(mat) = colnames(big.dat_delayedArray)[id]      
+  }
+  else{
+    colnames(mat) = colnames(big.dat_delayedArray)[id[ord]]      
+  }
+  if(sparse){
+    mat = Matrix(mat,sparse=TRUE)
+  }
+  rownames(mat) = rownames(big.dat_delayedArray)
+  return(mat)
+}
+
+convert_big.dat_delayed <- function(big.dat, block.size=20000)
+  {
+    big.dat.delayedArray = NULL
+    bins = split(1:length(big.dat$col_id), floor(length(big.dat$col_id)/block.size))
+    for(i in 1:length(bins)){
+      print(i)
+      big.dat.sparse = Matrix(big.dat$fbm[,bins[[i]]],sparse = TRUE)
+      if(is.null(big.dat.delayedArray)){
+        big.dat.delayedArray = DelayedArray(big.dat.sparse)
+      }
+      else{
+        big.dat.delayedArray = cbind(big.dat.delayedArray, DelayedArray(big.dat.sparse))                  
+      }
+    }
+    colnames(big.dat.delayedArray) = big.dat$col_id
+    rownames(big.dat.delayedArray) = big.dat$row_id
+    return(big.dat.delayedArray)      
+  }
