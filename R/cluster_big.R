@@ -233,10 +233,15 @@ onestep_clust_big<- function(big.dat,
                              max.cl.size = 300,
                              k.nn=15,
                              prefix = NULL, 
-                             verbose = FALSE)
+                             verbose = FALSE, overwrite=FALSE)
                             
   {
     library(matrixStats)
+    outfile=paste0(prefix, ".rda")
+    if(file.exists(outfile) & !overwrite){
+      load(outfile)
+      return(result)
+    }
     
     method=method[1]
     merge.type=merge.type[1]
@@ -255,7 +260,7 @@ onestep_clust_big<- function(big.dat,
     if(verbose){
       print("Find high variance genes")
     }    
-    system.time({vg = find_vg(counts)})
+    system.time({vg = findVG(counts)})
     select.genes = with(vg, row.names(vg)[which(loess.padj < vg.padj.th | dispersion >3)])
     if(length(select.genes) < de.param$min.genes){
       return(NULL)
@@ -311,6 +316,7 @@ onestep_clust_big<- function(big.dat,
     norm.dat = get_logNormal(big.dat, sampled.cells)
     merge.result=merge_cl(norm.dat, cl=cl, rd.dat=rd.dat, merge.type=merge.type, de.param=de.param, max.cl.size=max.cl.size, verbose=verbose)
     rm(norm.dat)
+    gc()
     if(is.null(merge.result)){
       return(NULL)
     }
@@ -318,12 +324,17 @@ onestep_clust_big<- function(big.dat,
     de.genes = merge.result$de.genes
     markers= merge.result$markers
     result=list(cl=cl, markers=markers)
+
+    if(verbose){
+      save(result, file=outfile)
+    }
     rm(rd.dat.t)
     rm(merge.result)
     rm(counts)
     gc()
     return(result)
   }
+
 
 
 #' Iterative clustering algorithm for single cell RNAseq dataset
@@ -388,9 +399,9 @@ iter_clust_big<- function(big.dat=NULL,
         }
         else{
           tmp.prefix = paste(prefix, x, sep=".")
-          if(length(tmp.cells) < 50000){
-            norm.dat = get_logNormal(big.dat, tmp.cells)
-            tmp.result=iter_clust(norm.dat=norm.dat, select.cells=tmp.cells, prefix=tmp.prefix,split.size=split.size,method= method, counts=counts, sampleSize=sampleSize, ...)
+          if(length(select.cells) < 50000){
+            norm.dat = get_logNormal(big.dat, select.cells)
+            tmp.result=iter_clust(norm.dat=norn.dat, select.cells=tmp.cells, prefix=tmp.prefix,split.size=split.size,method= method, counts=counts, sampleSize=sampleSize, ...)
             rm(norm.dat)
           }
           else{
@@ -476,3 +487,185 @@ convert_big.dat_delayed <- function(big.dat, block.size=20000)
     rownames(big.dat.delayedArray) = big.dat$row_id
     return(big.dat.delayedArray)      
   }
+
+
+get_cl_stats_big <- function(big.dat, cl, max.cl.size=200, max.cells=100000, stats=c("means"))
+  {
+    if(!is.factor(cl)){
+      cl = as.factor(cl)
+    }
+    sampled.cells = sample_cells(cl, max.cl.size)
+    sampled.cl = cl[sampled.cells]
+    sampled.size = table(sampled.cl)    
+    cl.bins=round(cumsum(sampled.size) / max.cells)
+    cl.bins=split(names(sampled.size), cl.bins)
+    tmp.results=sapply(cl.bins, function(select.cl){
+      tmp.cl= droplevels(sampled.cl[sampled.cl %in% select.cl])      
+      dat = get_logNormal(big.dat, names(tmp.cl))
+      result = sapply(stats, function(x){
+          get_cl_stats(dat, cl=tmp.cl,stats=x)
+      }, simplify=F)
+    },simplify=F)
+    cl.results = sapply(stats, function(x){
+      do.call("cbind",sapply(tmp.results, function(result) result[[x]], simplify=F))
+    },simplify=F)
+    return(cl.results)    
+  }
+
+merge_cl_big <- function(big.dat,
+                    cl, 
+                    rd.dat=NULL,
+                    rd.dat.t = NULL,
+                    de.param = de_param(), 
+                    merge.type = c("undirectional","directional"), 
+                    max.cl.size = 300,
+                    de.genes = NULL, 
+                    return.markers = FALSE,
+                    verbose = 0,
+                    k=4)
+  {
+    de.method = "fast_limma"
+    if(!is.integer(cl)){
+      cl = setNames(as.integer(as.character(cl)), names(cl))
+    }
+    merge.type=merge.type[1]
+    de.df=list()
+    pairs=NULL
+    if(!is.null(de.genes)){
+      pairs=do.call("rbind",strsplit(names(de.genes), "_"))
+      row.names(pairs)=names(de.genes)
+    }
+     ###Merge small clusters with the closest neighbors first.
+    if(!is.null(rd.dat)){
+      cl.rd = as.data.frame(get_cl_means(rd.dat,cl[names(cl) %in% row.names(rd.dat)]))
+    }
+    else{
+      cl.rd = as.data.frame(get_cl_means(rd.dat.t,cl[names(cl) %in% colnames(rd.dat.t)]))
+    }
+    cl.size = table(cl)
+    while(TRUE){
+      cl.size = table(cl)
+      if(length(cl.size)==1){
+        break
+      }
+      cl.small =  names(cl.size)[cl.size < de.param$min.cells]
+      ###if all clusters are small, not need for further split. 
+      if(length(cl.small)==length(cl.size)){
+        return(NULL)
+      }
+      if(length(cl.small)==0){
+        break
+      }      
+      merge.pairs = get_knn_pairs(cl.rd[,!colnames(cl.rd) %in% cl.small, drop=F], cl.rd[,cl.small,drop=F], k=1)
+      x = merge.pairs[1,1]
+      y=  merge.pairs[1,2]
+      if(verbose > 0){
+        cat("Merge: ", x,y, "sim:", merge.pairs[1,"sim"],"\n")
+      }
+      cl[cl==y]= x
+      p = as.character(c(x,y))
+      cl.rd[[p[1]]] = get_weighted_means(as.matrix(cl.rd[,p]), as.vector(cl.size[p]))
+      cl.rd[[p[2]]] = NULL
+      cl.size[p[1]] = sum(cl.size[p])
+      cl.size = cl.size[names(cl.size)!=p[2]]
+    }
+    tmp.cl = cl[names(cl) %in% big.dat$col_id]
+    tmp = get_cl_stats_big(big.dat, cl, max.cl.size=max.cl.size, stats=c("means","present","sqr_means"))
+    cl.means = as.data.frame(tmp$means)
+    cl.present = as.data.frame(tmp$present)    
+    cl.sqr.means = as.data.frame(tmp$sqr_means)
+    
+    while(length(unique(cl)) > 1){
+      merge.pairs = get_knn_pairs(cl.rd, cl.rd, k=k)
+      ###Determine the de score for these pairs
+      if(nrow(merge.pairs)==0){
+        break
+      }
+      
+      #####get DE genes for new pairs
+      new.pairs = setdiff(row.names(merge.pairs),names(de.genes))
+      if(verbose > 0){
+        cat("Compute DE genes\n")
+      }
+      
+      tmp.de.genes =de_selected_pairs(norm.dat=NULL, cl=cl, pairs=merge.pairs[new.pairs,], de.param= de.param, method=de.method, cl.means=cl.means, cl.present=cl.present, cl.sqr.means=cl.sqr.means)
+      
+      de.genes[names(tmp.de.genes)] = tmp.de.genes
+      pairs = get_pairs(names(de.genes))
+      
+      tmp.pairs= intersect(names(de.genes), row.names(merge.pairs))
+      sc = sapply(de.genes[tmp.pairs], function(x){
+        if(length(x)>0){x$score}
+        else{0}
+      })
+      sc = sort(sc)
+                                        #print(head(sc,10))      
+      to.merge = sapply(names(sc), function(p){
+        to.merge = test_merge(de.genes[[p]], de.param, merge.type=merge.type)
+      })
+      if(sum(to.merge)==0){
+        break
+      }
+      sc = sc[to.merge]
+      to.merge= merge.pairs[names(sc),,drop=FALSE]
+      to.merge$sc = sc          
+      
+      merged =c()
+###The first pair in to.merge always merge. For the remaining pairs, if both clusters have already enough cells,
+###or independent of previus merging, then they can be directly merged as well, without re-assessing DE genes. 
+      for(i in 1:nrow(to.merge)){
+        p = c(to.merge[i,1], to.merge[i,2])
+        if(i == 1 | sc[i] < de.param$de.score.th /2  & length(intersect(p, merged))==0){
+          cl[cl==p[2]] = p[1]
+          
+          p = as.character(p)
+          if(verbose > 0){
+            cat("Merge ",p[1], p[2], to.merge[i,"sc"], to.merge[i, "sim"], cl.size[p[1]],"cells", cl.size[p[2]],"cells", "\n")
+          }
+          
+          cl.rd[[p[1]]] = get_weighted_means(as.matrix(cl.rd[,p]), cl.size[p])
+          cl.rd[[p[2]]] = NULL          
+          cl.means[[p[1]]] = get_weighted_means(as.matrix(cl.means[, p]), cl.size[p])
+          cl.means[[p[2]]] = NULL
+          cl.present[[p[1]]] = get_weighted_means(as.matrix(cl.present[, p]), cl.size[p])
+          cl.present[[p[2]]] = NULL
+          cl.sqr.means[[p[1]]] = get_weighted_means(as.matrix(cl.sqr.means[, p]), cl.size[p])
+          cl.sqr.means[[p[2]]] = NULL
+          cl.size[p[1]] = sum(cl.size[p])
+          cl.size = cl.size[names(cl.size)!=p[2]]
+          rm.pairs = row.names(pairs)[pairs[,1]%in% p | pairs[,2]%in% p]
+          de.genes = de.genes[setdiff(names(de.genes),rm.pairs)]
+          merged = c(merged,p)
+        }
+      }
+    }
+    if(length(unique(cl))<2){
+      return(NULL)
+    }
+    if(verbose > 0){
+      print(table(cl))
+    }
+    markers = NULL
+    if(return.markers){
+      if(!is.null(max.cl.size)){
+        sampled.cells = sample_cells(cl[names(cl) %in% big.dat$col_id],  max.cl.size)
+        tmp.cl= cl[sampled.cells]
+      }
+      else{
+        tmp.cl= cl
+      }
+      de.genes = de_all_pairs(norm.dat=NULL, cl=tmp.cl, de.genes=de.genes, de.param=de.param, cl.means=cl.means, cl.present=cl.present, cl.sqr.means=cl.sqr.means)
+    }
+    markers = select_markers(norm.dat=NULL, cl, de.genes=de.genes, n.markers=50)$markers
+    sc = sapply(de.genes, function(x){
+      if(length(x)>0){x$score}
+      else{0}
+    })
+    return(list(cl=cl, de.genes=de.genes,sc=sc, markers=markers))
+  }
+
+
+
+
+  
+

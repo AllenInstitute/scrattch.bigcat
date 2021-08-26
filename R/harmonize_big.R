@@ -539,6 +539,47 @@ get_de_result_recursive <- function(comb.dat, all.results, sets=names(comb.dat$d
         
 
 
+impute_knn_cross <- function(comb.dat, split.results, impute.dat.list, ref.sets, select.cells, init=TRUE)
+  {
+###cross-modality Imputation based on nearest neighbors in each iteraction of clustering using anchoring genes or genes shown to be differentiall expressed.
+    select.genes = row.names(impute.dat.list[[1]])
+    for(x in names(split.results)){
+      print(x)
+      result = split.results[[x]]
+      cl = result$cl
+      knn = result$knn    
+      for(ref.set in ref.sets){
+        if(ref.set %in% names(result$ref.list)){
+          tmp.cells = row.names(result$knn)
+          query.cells = intersect(tmp.cells[comb.dat$meta.df[tmp.cells,"platform"] != ref.set], select.cells)
+          if(init & any(!query.cells %in% row.names(impute.dat.list[[ref.set]]))){
+            impute.genes = select.genes
+          }
+          else{
+            impute.genes=intersect(select.genes,c(result$select.markers, result$select.genes))
+          }
+          select.cols = comb.dat$meta.df[comb.dat$all.cells[result$knn[1,]],"platform"] == ref.set
+          if(sum(select.cols)==0){
+            next
+          }
+          if(length(query.cells)==0){
+            next
+          }          
+          select.knn = result$knn[query.cells,select.cols,drop=F]
+          dat = impute.dat.list[[ref.set]]
+          gene.id = match(impute.genes, row.names(dat))
+          cell.id = match(query.cells, colnames(dat))
+          reference.id = match(comb.dat$all.cells, colnames(dat))
+          ImputeKnn(select.knn, reference.id, cell.id, gene_idx=gene.id, 
+                      dat=dat,impute_dat=dat, w_mat_= NULL,
+                      transpose_input=FALSE, transpose_output=FALSE)                  
+        }
+      }
+    }
+    return(impute.dat.list=impute.dat.list)
+  }
+
+
 
 
 #### assume within data modality have been performed
@@ -556,84 +597,26 @@ impute_knn_global_big<- function(comb.dat, split.results, select.genes, select.c
           ref.dat = ref.dat.list[[x]][select.genes, ]
           tmp.cells = intersect(select.cells, comb.dat$dat.list[[x]]$col_id)
           rd.result <- rd_PCA_big(comb.dat$dat.list[[x]], ref.dat, select.cells=tmp.cells, max.dim=100, th=0.5, mc.cores=mc.cores,method="elbow",verbose=verbose)
-          org.rd.dat.list[[x]] = rd.result
+          rd.dat = rd.result$rd.dat
+          if(!is.null(rm.eigen)){
+            rd.dat = filter_RD(rd.dat, rm.eigen, rm.th, verbose=verbose)
+          }
+          ref.cells=colnames(ref.dat)
+          knn = get_knn_batch(rd.dat, rd.dat[ref.cells,], method="Annoy.Euclidean", mc.cores=mc.cores, batch.size=50000,k=k,transposed=FALSE)                  
+          reference.id = 1:length(ref.cells)
+          cell.id = match(row.names(rd.dat), select.cells)                
+          gene.id = 1:length(select.genes)
+          impute.dat = matrix(0, nrow=length(select.genes), ncol=length(select.cells))
+          dimnames(impute.dat) = list(select.genes, select.cells)
+          dat = as.matrix(ref.dat)
+          ImputeKnn(knn, reference.id, cell.id, gene.id, dat=dat, impute.dat, w_mat_ = NULL,
+                  transpose_input=FALSE, transpose_output=FALSE);
+          impute.dat.list[[x]] = impute.dat                                          
         }
     }
-    
-    for(x in ref.sets){
-        rd.dat  = org.rd.dat.list[[x]]$rd.dat
-        ref.cells=colnames(ref.dat.list[[x]])
-        if(!is.null(rm.eigen)){
-          rd.dat = filter_RD(rd.dat, rm.eigen, rm.th, verbose=verbose)
-        }
-        if(verbose){
-          print(ncol(rd.dat))
-        }
-        knn.result <- RANN::nn2(data=rd.dat[ref.cells,], query=rd.dat, k=15)
-        knn <- knn.result[[1]]
-        row.names(knn) = row.names(rd.dat)    
-        knn.list[[x]]=knn
-        impute.dat.list[[x]] <- impute_knn(knn, ref.cells, as.matrix(t(ref.dat.list[[x]][select.genes,ref.cells])))
-      }
-    ###cross-modality Imputation based on nearest neighbors in each iteraction of clustering using anchoring genes or genes shown to be differentiall expressed.
-
-    for(x in names(split.results)){
-      print(x)
-      result = split.results[[x]]
-      cl = result$cl
-      knn = result$knn
-      
-      for(ref.set in ref.sets){
-        if(ref.set %in% names(result$ref.list)){
-          tmp.cells = row.names(result$knn)
-          add.cells=FALSE
-          query.cells = intersect(tmp.cells[comb.dat$meta.df[tmp.cells,"platform"] != ref.set], select.cells)
-          if(any(!query.cells %in% row.names(impute.dat.list[[ref.set]]))){
-            add.cells=TRUE
-            impute.genes = select.genes
-          }
-          else{
-            impute.genes=intersect(select.genes,c(result$select.markers, result$select.genes))
-          }
-          select.cols = comb.dat$meta.df[comb.dat$all.cells[result$knn[1,]],"platform"] == ref.set
-          if(sum(select.cols)==0){
-            next
-          }
-          else{
-            ref.cells = intersect(comb.dat$all.cells[unique(as.vector(knn[, select.cols]))],select.cells)            
-            select.knn = result$knn[query.cells,select.cols]
-            impute.dat = impute_knn(select.knn, comb.dat$all.cells, impute.dat.list[[ref.set]][ref.cells,impute.genes])
-          }
-          if(!add.cells){
-            impute.dat.list[[ref.set]][query.cells, impute.genes] <- impute.dat
-          }
-          else{
-            impute.dat.list[[ref.set]] <- rbind(impute.dat.list[[ref.set]],impute.dat)
-          }
-          rm(impute.dat)
-          gc()
-        }
-      }
-    }
-    return(list(knn.list =knn.list, org.rd.dat.list = org.rd.dat.list,impute.dat.list=impute.dat.list))
+    impute.dat.list = impute_knn_cross(comb.dat, split.results, impute.dat.list, ref.sets, init=TRUE)
   }
 
-##' .. content for \description{} (no empty lines) ..
-##'
-##' .. content for \details{} ..
-##' @title 
-##' @param comb.dat 
-##' @param all.results 
-##' @param select.genes 
-##' @param select.cells 
-##' @param ref.sets 
-##' @return 
-##' @author Zizhen Yao
-impute_knn_cross <- function(comb.dat, all.results, select.genes, select.cells, ref.sets=ref.sets)
-  {
-    #impute.dat.list <<- list()
-    return(impute.dat.list)
-  }
 
 
 gene_gene_cor_conservation <- function(dat.list, select.genes, select.cells,pairs=NULL)
