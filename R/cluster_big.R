@@ -401,7 +401,7 @@ iter_clust_big<- function(big.dat=NULL,
           tmp.prefix = paste(prefix, x, sep=".")
           if(length(select.cells) < 50000){
             norm.dat = get_logNormal(big.dat, select.cells)
-            tmp.result=iter_clust(norm.dat=norn.dat, select.cells=tmp.cells, prefix=tmp.prefix,split.size=split.size,method= method, counts=counts, sampleSize=sampleSize, ...)
+            tmp.result=iter_clust(norm.dat=norm.dat, select.cells=tmp.cells, prefix=tmp.prefix,split.size=split.size,method= method, counts=counts, sampleSize=sampleSize, ...)
             rm(norm.dat)
           }
           else{
