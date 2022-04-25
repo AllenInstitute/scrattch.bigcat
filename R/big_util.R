@@ -222,7 +222,7 @@ append_mat_to_parquet <- function(mat, big.dat, col.bin.size=50000, row.bin.size
   }
 
 
-fbm_to_parqeut <- function(big.dat, cols=big.dat$col_id, rows=big.dat$row_id, dir="./",parquet.dir=file.path(dir,"norm.dat_parquet"), col.fn=file.path(dir,"samples.parquet"), row.fn=file.path(dir,"gene.parquet"))
+fbm_to_parqeut <- function(big.dat, cols=big.dat$col_id, rows=big.dat$row_id, dir="./",parquet.dir=file.path(dir,"norm.dat_parquet"), col.fn=file.path(dir,"samples.parquet"), row.fn=file.path(dir,"gene.parquet"), row.bin.size = 500,    col.bin.size = 50000)
   {
     if(!dir.exists(dir)){
       dir.create(dir)
@@ -242,12 +242,11 @@ fbm_to_parqeut <- function(big.dat, cols=big.dat$col_id, rows=big.dat$row_id, di
     else{
       row.id = sort(rows)
     }
-    col.bin.size = max(length(col.id)/1000, 50000)
+    col.bin.size = max(length(col.id)/1000, col.bin.size)
     col.df = data.frame(col_id=col.id, col_name=big.dat$col_id[col.id])
     col.df$col_bin = ceiling((1:nrow(col.df))/col.bin.size)
     write_parquet(col.df, col.fn)
 
-    row.bin.size = 500
     row.df = data.frame(row_id=row.id, row_name=big.dat$row_id[row.id])
     row.df$row_bin = ceiling((1:nrow(row.df))/row.bin.size)
     write_parquet(row.df, row.fn)
@@ -348,7 +347,7 @@ get_cols_parquet <- function(big.dat.parquet, cols, rows=NULL,keep.col=FALSE, sp
       }
     }
     else{
-      rows=big.dat$row_id
+      rows=big.dat.parquet$row_id
     }
     select.i = sort(row.df$row_id) - 1
     row.bin = row.df %>% pull(row_bin) %>% unique
@@ -416,6 +415,9 @@ get_cl_stats_parquet <- function(big.dat.parquet, cl, mc.cores=20,stats=c("means
     }
     cl.anno = data.table(cl=as.factor(cl), col_name=names(cl)) %>% left_join(col.df, by="col_name")
     cl.anno$j = cl.anno$col_id - 1
+    cl.size = cl.anno %>% group_by(cl) %>% summarize(size=n(),.groups = 'drop')
+    cl.l = levels(cl.anno$cl)
+    ncl = length(cl.l)
     col.bin = cl.anno %>% select(col_bin) %>% distinct() %>% pull(col_bin)
     row.bin = row.df %>% pull(row_bin) %>% unique
     tmp.dir = tempdir()
@@ -456,8 +458,10 @@ get_cl_stats_parquet <- function(big.dat.parquet, cl, mc.cores=20,stats=c("means
         idx=paste0(r.id, "_", c.id)
         write_parquet(as.data.frame(cl.stats), sink=file.path(tmp.dir, paste0(idx,".parquet")))
       }
-    print(tmp.dir)
+    #print(tmp.dir)
     fn = dir(tmp.dir)
+    rm(cl.anno)
+    gc()
     result.df <-  foreach(r.id=row.bin, .combine="c") %dopar% {
       select.fn  = file.path(tmp.dir,grep(paste0("^",r.id,"_"), fn,value=T))
       df = open_dataset(select.fn) %>% collect() %>% group_by(cl, i)
@@ -487,7 +491,6 @@ get_cl_stats_parquet <- function(big.dat.parquet, cl, mc.cores=20,stats=c("means
     }
     
     cl.stats = rbindlist(result.df)
-    cl.size = cl.anno %>% group_by(cl) %>% summarize(size=n(),.groups = 'drop')
     cl.stats = cl.stats %>% left_join(cl.size, by="cl")    
     if("means" %in% stats){
       cl.stats <- cl.stats %>% mutate(means= sum/size)
@@ -501,23 +504,20 @@ get_cl_stats_parquet <- function(big.dat.parquet, cl, mc.cores=20,stats=c("means
     
     if(return.matrix){
       ngenes = nrow(row.df)
-      ncl = length(levels(cl.anno$cl))
       coor =  (as.integer(cl.stats$cl) - 1)* ngenes  + cl.stats$i + 1
       mat.list= list()
       for(x in stats){
         mat = matrix(0, nrow=ngenes,ncol=ncl)
-        row.names(mat) = big.dat$row_id
-        colnames(mat) = levels(cl.anno$cl)
+        row.names(mat) = big.dat.parquet$row_id
+        colnames(mat) = cl.l
         mat[coor] = cl.stats[[x]]
         mat = as.matrix(mat, ncol=ncl)
         mat.list[[x]] = mat
       }
       return(mat.list)
     }
-
     return(cl.stats)    
   }
-
 
 get_cl_stats_big <- function(big.dat, cl, max.cl.size=200,stats=c("means"),...)
   {
@@ -566,30 +566,74 @@ big_dat_apply <- function(big.dat, cols, FUN, .combine="c",  mc.cores=1, block.s
     library(parallel)    
     require(doMC)
     bins = get_big_bins(big.dat, cols, block.size=block.size)
-    print(length(bins))
+    #print(length(bins))
     mc.cores = min(mc.cores, length(bins))
     registerDoMC(cores=mc.cores)
     res = foreach(bin = bins, .combine=.combine) %dopar% FUN(big.dat, bin, ...)
   }
 
 
-get_knn_batch_big <- function(big.dat, ref.dat, select.cells,block.size=10000, mc.cores,k, method="cor", dim=NULL, return.distance=FALSE,...)                              
+build_train_index <- function(cl.dat, method= c("Annoy.Cosine","cor","Annoy.Euclidean"),fn=tempfile(fileext=".idx"))
   {
+    library(BiocNeighbors)
+    method = method[1]
+    ref.dat = Matrix::t(cl.dat)
+    if(method=="cor"){
+      ref.dat = ref.dat - rowMeans(ref.dat)
+      ref.dat = l2norm(ref.dat,by = "row")
+    }
+    if (method=="Annoy.Cosine"){
+      ref.dat = l2norm(ref.dat,by = "row")
+    }
+    index= buildAnnoy(ref.dat, fname=fn)
+    return(index)    
+  }
+
+get_knn_batch_big <- function(big.dat, ref.dat, select.cells,block.size=10000, mc.cores,k, method="cor", dim=NULL, return.distance=FALSE, index=NULL, clear.index=FALSE, ntrees=50,transposed=TRUE)     
+  {
+    
     if(return.distance){
       fun = "knn_combine"
     }
     else{
       fun = "rbind"
     }
+    if(is.null(index) & method %in% c("Annoy.Euclidean", "Annoy.Cosine", "cor")) {
+      if(transposed){
+        map.ref.dat = Matrix::t(ref.dat)
+      }
+      else{
+        map.ref.dat = ref.dat
+      }
+      if (method == "cor") {
+        map.ref.dat = map.ref.dat - rowMeans(map.ref.dat)
+        map.ref.dat = l2norm(map.ref.dat, by = "row")
+      }
+      if (method == "Annoy.Cosine") {
+        map.ref.dat = l2norm(map.ref.dat, by = "row")
+      }
+      index = buildAnnoy(map.ref.dat, ntrees = ntrees)
+      rm(map.ref.dat)
+      gc()
+    }    
     result = big_dat_apply(big.dat, cols=select.cells, .combine=fun, mc.cores=mc.cores, block.size=block.size, FUN = function(big.dat, bin,...){
       {
-        dat = get_logNormal(big.dat, bin, keep.col=FALSE, sparse=FALSE)[row.names(ref.dat),,drop=F]
-        knn=get_knn(dat=dat, ref.dat=ref.dat, k=k, method=method, dim=dim,return.distance=return.distance,...)
+        dat = get_logNormal(big.dat, bin, rows=row.names(ref.dat))
+        knn=get_knn(dat=dat, ref.dat=ref.dat, k=k, method=method, dim=dim,return.distance=return.distance,index=index,...)
         rm(dat)
         gc()
         knn
       }
-    })
+    })    
+    if(clear.index){
+      cleanAnnoyIndex(index)
+    }
+    else{
+      if(!is.list(result)){
+        result = list(result)
+      }
+      result$ref.index=index
+    }
     return(result)
   }
 
@@ -599,7 +643,7 @@ map_cells_knn_big <- function(big.dat, cl.dat, select.cells, train.index=NULL, m
     cl.knn =  get_knn_batch_big(big.dat, cl.dat, select.cells=select.cells, k=1, index=train.index, method=method, transposed=TRUE, block.size=block.size, mc.cores=mc.cores,return.distance=TRUE)
     knn.index = cl.knn[[1]]
     knn.dist = cl.knn[[2]]
-    map.df = data.frame(sample_id=select.cells, cl = colnames(cl.dat)[knn.index], dist = knn.dist)
+    map.df = data.frame(sample_id=row.names(knn.index), cl = colnames(cl.dat)[knn.index], dist = knn.dist)
     return(map.df)
   }
 

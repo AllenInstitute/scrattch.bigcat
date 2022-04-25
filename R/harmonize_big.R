@@ -78,7 +78,7 @@ prepare_harmonize_big <- function(dat.list, meta.df=NULL, cl.list=NULL, cl.df.li
 
 
 
-select_joint_genes <-  function(comb.dat, ref.dat.list, select.cells = comb.dat$all.cells, maxGenes=2000, vg.padj.th=0.5, max.dim=20, top.n=100,rm.eigen=NULL, rm.th=rep(0.7,ncol(rm.eigen)))
+select_joint_genes <-  function(comb.dat, ref.dat.list, select.cells = comb.dat$all.cells, maxGenes=2000, vg.padj.th=0.5, max.dim=20, top.n=100,rm.eigen=NULL, rm.th=rep(0.7,ncol(rm.eigen)),use.common=TRUE)
   {
     require(matrixStats)
     require(data.table)
@@ -132,10 +132,14 @@ select_joint_genes <-  function(comb.dat, ref.dat.list, select.cells = comb.dat$
     select.genes= head(gene.score$gene, maxGenes)
     #gg.cons = gene_gene_cor_conservation(ref.dat.list, select.genes, select.cells)
     #select.genes = row.names(gg.cons)[gg.cons > conservation.th]
+    if(use.common){
+      common.genes=Reduce("intersect", lapply(ref.dat.list, row.names))
+      select.genes= intersect(select.genes,common.genes)
+    }
     return(select.genes)
   }
 
-build_annoy_index <- function(ref.dat, knn.method, transposed=TRUE)
+build_annoy_index <- function(ref.dat, knn.method, transposed=TRUE,ntrees=50)
   {
     if(transposed){
       knn.ref.dat = t(ref.dat)
@@ -154,121 +158,88 @@ build_annoy_index <- function(ref.dat, knn.method, transposed=TRUE)
   }
 
 
-compute_knn <- function(comb.dat, select.genes, ref.list, ref.dat.list=NULL, select.sets=names(comb.dat$dat.list), select.cells=comb.dat$all.cells, k=15, cross.knn.method=c("Annoy.Cosine","cor"), self.knn.method=c("Annoy.Euclidean","RANN"), block.size=10000, mc.cores=1, rm.eigen=NULL, rm.th=0.7, max.dim=20)
+compute_knn <- function(comb.dat, select.genes, ref.list, ref.dat.list=NULL, select.sets=names(comb.dat$dat.list), select.cells=comb.dat$all.cells, k=15, cross.knn.method=c("Annoy.Cosine","cor"), self.knn.method=c("Annoy.Cosine"), block.size=10000, mc.cores=1)
   {    
     cat("Number of select genes", length(select.genes), "\n")
     cat("Get knn\n")
     dat.list = comb.dat$dat.list
-###index is the index of knn from all the cells
+    if(is.null(ref.dat.list)){
+      for(ref.set in names(ref.list)){
+        if(length(ref.list[[ref.set]]) <= k) {
+          ##Not enough reference points to compute k
+          next
+        }
+        dat = dat.list[[ref.set]]
+        ref.cells = ref.list[[ref.set]]
+        if(comb.dat$type =="mem"){
+          ref.dat.list[[ref.set]] = dat[,ref.cells,drop=FALSE]
+        }
+        else{
+          ref.dat.list[[ref.set]] = get_logNormal(dat, ref.cells, mc.cores=mc.cores)
+        }
+      }
+    }
     knn.list = list()
     for(ref.set in names(ref.list)){
-      cat("Ref ", ref.set, "\n")
-      if(length(ref.list[[ref.set]]) <= k) {
-        ##Not enough reference points to compute k
-        next
-      }
+      cat("Ref set ", ref.set, "\n")
+      ###index is the index of knn from all the cells              
       k.tmp = k
       if(length(ref.list[[ref.set]]) <= k*2) {
         k.tmp = round(k/2)
       }
-      
-      dat = dat.list[[ref.set]]
-      if(comb.dat$type=="mem"){
-        map.cells = intersect(colnames(dat), select.cells)
-      }
-      else{
-        map.cells=  dat$col_id[dat$col_id %in% select.cells]
-      }
-      if(length(map.cells)==0){
-        next
-      }
       ref.cells = ref.list[[ref.set]]
-      if(comb.dat$type =="mem"){
-        ref.select.genes = intersect(select.genes, row.names(dat))
-      }
-      else{
-        ref.select.genes = intersect(select.genes, dat$row_id)
-      }
-      if(is.null(ref.dat.list)){
-        if(comb.dat$type =="mem"){
-          ref.dat = dat
-        }
-        else{
-          ref.dat = get_logNormal(dat, ref.cells, sparse=FALSE, keep.col=FALSE,mc.cores=mc.cores)
-        }
-        ref.dat.list[[ref.set]] = ref.dat
-      }
-      else{
-        ref.dat = ref.dat.list[[ref.set]]
-      }
-      ref.dat = ref.dat[ref.select.genes,ref.cells]
-      if(length(map.cells) == length(ref.cells)){
-        rd.dat = rd_PCA(ref.dat[,ref.cells], max.pca=max.dim, method="elbow")$rd.dat
-      }
-      else{
-        if(comb.dat$type=="mem"){
-          if(all(map.cells  %in% colanmes(ref.dat))){
-            rd.dat = rd_PCA(ref.dat, select.cells=map.cells, sampled.cells=ref.cells, max.pca=max.dim, method="elbow")$rd.dat
-          }
-          else{
-            rd.dat = rd_PCA(dat[ref.select.genes,], select.cells=map.cells, sampled.cells=ref.cells, max.pca=max.dim, method="elbow",mc.cores=mc.cores)$rd.dat
-          }
-        }
-        else{
-          rd.dat = rd_PCA_big(big.dat=dat, dat = ref.dat, select.cells=map.cells, max.dim = max.dim, mc.cores=mc.cores,method="elbow")$rd.dat
-        }
-      }
-      if(!is.null(rm.eigen)){
-        rd.dat = filter_RD(rd.dat, rm.eigen, rm.th=rm.th)
-      }
-      ref.rd.dat = rd.dat[ref.cells,,drop=F]
-      if(is.null(ref.rd.dat)){
-        next
-      }
-      idx = match(ref.cells, comb.dat$all.cells)
-      index = NULL
-      if(length(select.cells) >50000 & self.knn.method %in% c("Annoy.Euclidean")){
-        require(BiocNeighbors)
-        index = buildAnnoy(ref.rd.dat, distance ="Euclidean", transposed = FALSE)
-      }
-      knn=get_knn_batch(dat=rd.dat, ref.dat = ref.rd.dat, k=k.tmp, method = self.knn.method, batch.size = block.size, mc.cores=mc.cores, index=index, transposed=FALSE)
-      if(!is.null(index)){
-        cleanAnnoyIndex(index)
-      }      
-      knn = matrix(idx[knn], nrow=nrow(knn), dimnames=list(row.names(knn), NULL))
-      self.knn = knn
-      index = NULL
-      if(length(select.cells)>50000){
-        ###build reference 
-        if(cross.knn.method  %in% c("Annoy.Euclidean", "Annoy.Cosine","cor")){
-        }
-      }
-      knn =do.call("rbind", lapply(setdiff(select.sets,ref.set), function(set){
+      index=NULL
+      ref.dat = ref.dat.list[[ref.set]][,ref.cells, drop=FALSE]
+      ref.dat = ref.dat[select.genes[select.genes %in% row.names(ref.dat)],,drop=FALSE]
+      idx = match(ref.cells, comb.dat$all.cells)      
+      knn =do.call("rbind", lapply(c(ref.set, setdiff(select.sets,ref.set)), function(set){
         dat = dat.list[[set]]
         cat("Set ", set, "\n")
         if(comb.dat$type=="mem"){
-          map.cells=  intersect(colnames(dat), select.cells)
-          map.select.genes = ref.select.genes[ref.select.genes %in% row.names(dat)]
+          map.cells=  intersect(colnames(dat), select.cells)          
+          map.select.genes = select.genes[select.genes %in% intersect(row.names(ref.dat),row.names(dat))]
         }
         else{
           map.cells=  dat$col_id[dat$col_id %in% select.cells]
-          map.select.genes = ref.select.genes[ref.select.genes %in% dat$row_id]
-        }
+          map.select.genes = select.genes[select.genes %in% intersect(row.names(ref.dat),dat$row_id)]
+        }        
         if(length(map.cells)==0){
           return(NULL)
         }
+        map.index=NULL
+        if(!is.null(index)){
+          if(length(map.select.genes)==ncol(index)){
+            map.index=index
+          }          
+        }
+        if(set==ref.set){
+          method = self.knn.method
+        }
+        else{
+          method = cross.knn.method
+        }
+        tmp.ref.dat = ref.dat
+        if(length(map.select.genes)!=nrow(ref.dat)){
+          tmp.ref.dat = tmp.ref.dat[map.select.genes,,drop=FALSE]
+        }
         if(all(map.cells %in% colnames(ref.dat.list[[set]]))){
           dat = ref.dat.list[[set]][map.select.genes,map.cells]          
-          knn=get_knn_batch(dat=dat, ref.dat = tmp.ref.dat, k=k.tmp, method = cross.knn.method, batch.size = block.size, mc.cores=mc.cores, index=index, transposed=TRUE)
+          knn.result=get_knn_batch(dat=dat, ref.dat = tmp.ref.dat, k=k.tmp, method = method, batch.size = block.size, mc.cores=mc.cores, index=map.index, transposed=TRUE)
         }
         else{
           if(comb.dat$type=="mem"){
             dat = comb.dat$dat.list[[set]][map.select.genes,map.cells]          
-            knn=get_knn_batch(dat=dat, ref.dat = tmp.ref.dat, k=k.tmp, method = cross.knn.method, batch.size = block.size, mc.cores=mc.cores, index=index, transposed=TRUE)
+            knn.result=get_knn_batch(dat=dat, ref.dat = tmp.ref.dat, k=k.tmp, method = method, batch.size = block.size, mc.cores=mc.cores, index=map.index, transposed=TRUE)
           }
           else{
-            knn=get_knn_batch_big(big.dat=dat.list[[set]], ref.dat = tmp.ref.dat,select.cells=map.cells, k=k.tmp, method = cross.knn.method, block.size = block.size, mc.cores=mc.cores, index=index, transposed=TRUE)
+            knn.result=get_knn_batch_big(big.dat=dat.list[[set]], ref.dat = tmp.ref.dat,select.cells=map.cells, k=k.tmp, method = cross.knn.method, block.size = block.size, mc.cores=mc.cores, index=map.index, transposed=TRUE)
           }
+        }
+        if(is.null(index)){
+          index = knn.result$ref.index
+        }
+        else{
+          cleanAnnoyIndex(knn.result$ref.index)
         }
         #if(!is.null(comb.dat$cl.list)){  
         #  test.knn = test_knn(knn, comb.dat$cl.list[[set]], colnames(ref.dat), comb.dat$cl.list[[ref.set]])          
@@ -276,12 +247,12 @@ compute_knn <- function(comb.dat, select.genes, ref.list, ref.dat.list=NULL, sel
         #    cat("Knn", set, ref.set, method, "cl.score", test.knn$cl.score, "cell.score", test.knn$cell.score,"\n")
         #  }
         #}
+        knn = knn.result[[1]]
         knn = matrix(idx[knn], nrow=nrow(knn), dimnames=list(row.names(knn), NULL))        
       }))
       if(!is.null(index)){
         cleanAnnoyIndex(index)
       }
-      knn = rbind(self.knn, knn)
       knn.list[[ref.set]] = knn[select.cells,]      
     }
     knn.comb = do.call("cbind",knn.list)
@@ -368,7 +339,7 @@ knn_joint <- function(comb.dat, ref.sets=names(comb.dat$dat.list), select.sets= 
   },simplify=F)
   ref.list = sapply(ref.dat.list, colnames, simplify=FALSE)
   cat("Get knn\n")
-  knn.comb= compute_knn(comb.dat, select.genes=select.genes, ref.list=ref.list, ref.dat.list= ref.dat.list, select.sets=select.sets, select.cells=select.cells, k=k, cross.knn.method=cross.knn.method, self.knn.method=self.knn.method, block.size=block.size, mc.cores=mc.cores, rm.eigen=rm.eigen, rm.th=rm.th, max.dim=max.dim)
+  knn.comb= compute_knn(comb.dat, select.genes=select.genes, ref.list=ref.list, ref.dat.list= ref.dat.list, select.sets=select.sets, select.cells=select.cells, k=k, cross.knn.method=cross.knn.method, self.knn.method=self.knn.method, block.size=block.size, mc.cores=mc.cores)
   if(is.null(knn.comb)){
     return(NULL)
   }
@@ -383,7 +354,7 @@ knn_joint <- function(comb.dat, ref.sets=names(comb.dat$dat.list), select.sets= 
     }
     sampled.cells=union(sampled.cells, unlist(ref.list))
   }     
-  result = knn_jaccard_clust(knn.comb[sampled.cells,],prune=1/ncol(knn.comb), method=method)
+  result = knn_jaccard_clust(knn.comb[sampled.cells,],prune=1/(ncol(knn.comb)-1), method=method)
   result$knn = knn.comb
   cl = result$cl
   result$ref.list = ref.list
@@ -459,7 +430,7 @@ harmonize <- function(comb.dat, prefix, overwrite=TRUE, dir="./",...)
 ##' @param ... 
 ##' @return 
 ##' @author Zizhen Yao
-i_harmonize<- function(comb.dat, select.cells=comb.dat$all.cells, ref.sets=names(comb.dat$dat.list), prefix="", result=NULL, overwrite=TRUE, sample.size = 50000, dir="./",rm.genes=NULL,...)
+i_harmonize<- function(comb.dat, select.cells=comb.dat$all.cells, ref.sets=names(comb.dat$dat.list), prefix="", result=NULL, overwrite=TRUE, sample.size = 50000, dir="./",rm.genes=NULL,split.size = 100, ...)
   {
     #attach(comb.dat)
     if(is.null(result)){
@@ -471,6 +442,9 @@ i_harmonize<- function(comb.dat, select.cells=comb.dat$all.cells, ref.sets=names
     all.results= list(result)
     names(all.results) = prefix
     cl = result$cl
+    if(length(cl) < split.size){
+      return(all.results)
+    }
     for(i in as.character(sort(unique(result$cl)))){
       tmp.prefix=paste(prefix, i,sep=".")
       print(tmp.prefix)

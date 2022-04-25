@@ -24,7 +24,7 @@ big_project <- function(big.dat, select.cells, rot, mc.cores=1,...)
     require(Matrix)
     my_project <- function(big.dat, cols){
       fn = tempfile()
-      dat = get_logNormal(big.dat, cols)[row.names(rot),]
+      dat = get_logNormal(big.dat, cols)
       dat = dat[row.names(rot),]
       dat = Matrix::crossprod(dat, rot)
       df= as.data.frame(as.matrix(dat))
@@ -109,7 +109,7 @@ onestep_clust_big<- function(big.dat,
     }
     if(verbose){
       print("Find high variance genes")
-    }    
+    }   
     system.time({vg = findVG(counts)})
     select.genes = with(vg, row.names(vg)[which(loess.padj < vg.padj.th | dispersion >2.5)])
     select.genes = intersect(select.genes, genes.allowed)
