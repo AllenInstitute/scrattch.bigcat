@@ -1,4 +1,4 @@
-create_big.dat <- function(row.id, col.id, logNormal=TRUE, backingfile=file.path(getwd(), "fbm"),...)
+create_big.dat_fbm <- function(row.id, col.id, logNormal=TRUE, backingfile=file.path(getwd(), "fbm"),...)
   {
     library(bigstatsr)
     m = FBM(nrow=length(row.id),ncol=length(col.id),backingfile=backingfile, type="float", ...)
@@ -7,7 +7,7 @@ create_big.dat <- function(row.id, col.id, logNormal=TRUE, backingfile=file.path
     return(big.dat)
   }
 
-convert_big.dat <- function(mat, logNormal=TRUE, backingfile=file.path(getwd(), "fbm"),...)
+convert_big.dat_fbm <- function(mat, logNormal=TRUE, backingfile=file.path(getwd(), "fbm"),...)
   {
     library(bigstatsr)
     m = FBM(nrow=nrow(mat),ncol=ncol(mat),backingfile=backingfile, type="float",...)
@@ -19,7 +19,7 @@ convert_big.dat <- function(mat, logNormal=TRUE, backingfile=file.path(getwd(), 
   }
 
 ###Only works for fbm
-append_big.dat <- function(big.dat, mat)
+append_big.dat_fbm <- function(big.dat, mat)
   {
     offset = big.dat$fbm$ncol
     ind_nozero <- which(mat != 0, arr.ind = TRUE)
@@ -32,22 +32,28 @@ append_big.dat <- function(big.dat, mat)
   }
 
 ###Only works for fbm
-convert_mat_list_big.dat <- function(mat.fn, backingfile=NULL, ...)
+convert_mat_list_big.dat_fbm <- function(mat.fn, backingfile=NULL, ...)
   {
     if(is.null(backingfile)){
       backingfile=file.path(getwd(), paste0(Sys.Date(),"_fbm"))
     }
-    mat = 
-    big.dat =  convert_big.dat(mat.list[[1]],backingfile=backingfile, ...)
-    for(i in 2:length(mat.list)){
-      big.dat = append_big.dat(big.dat, mat.list[[i]])
+    big.dat=NULL
+    for(i in 1:length(mat.fn)){
+      load(mat.fn[i])      
+      if(i==1){
+        big.dat =  convert_big.dat(mat.list[[1]],backingfile=backingfile, ...)
+      }
+      else{
+        big.dat = append_big.dat(big.dat, mat)
+      }
     }
     return(big.dat)
   }
 
 
+
 ###Only works for fbm
-reorder_big.dat <- function(big.dat, new.cols,backingfile=NULL)
+reorder_big.dat_fbm <- function(big.dat, new.cols,backingfile=NULL)
   {
     if(is.character(new.cols)){
       cols = match(new.cols, big.dat$col_id)
@@ -132,7 +138,7 @@ get_counts <- function(big.dat, cols, ...)
   }
 
 
-mat_to_parqeut <- function(mat, dir="./",parquet.dir=file.path(dir,"norm.dat_parquet"), col.fn=file.path(dir,"samples.parquet"), row.fn=file.path(dir,"gene.parquet"),col.bin.size=50000, row.bin.size=500,logNormal=TRUE,mc.cores=10)
+convert_big.dat_parqeut <- function(mat, dir="./",parquet.dir=file.path(dir,"norm.dat_parquet"), col.fn=file.path(dir,"samples.parquet"), row.fn=file.path(dir,"gene.parquet"),col.bin.size=50000, row.bin.size=500,logNormal=TRUE,mc.cores=10)
   {
     if(!dir.exists(dir)){
       dir.create(dir)
@@ -184,7 +190,7 @@ mat_to_parqeut <- function(mat, dir="./",parquet.dir=file.path(dir,"norm.dat_par
 ##' @param row.bin.size 
 ##' @return 
 ##' @author Zizhen Yao
-append_mat_to_parquet <- function(mat, big.dat, col.bin.size=50000, row.bin.size=500, mc.cores=10)
+append_big.dat_parquet <- function(mat, big.dat, col.bin.size=50000, row.bin.size=500, mc.cores=10)
   {
     parquet.dir = big.dat$parquet.dir
     col.df = read_parquet(big.dat$col.fn)
@@ -221,8 +227,44 @@ append_mat_to_parquet <- function(mat, big.dat, col.bin.size=50000, row.bin.size
     return(big.dat)    
   }
 
+reorder_big.dat_parquet <- function(big.dat, cols, parquet.dir, col.parquet.fn, col.bin.size=50000,mc.cores=10)
+  {
+    big.dat = init_big.dat_parquet(big.dat)
+    row.df = big.dat$row.df
+    row.df$i = row.df$row_id - 1
+    new.col.df = big.dat$col.df
+    new.col.df$new_col_id = match(new.col.df$col_name, cols)
+    new.col.df = new.col.df %>% filter(!is.na(new_col_id)) %>% arrange(new_col_id)
+    new.col.df$new_col_bin = ceiling(new.col.df$new_col_id/col.bin.size)
+    dir.create(parquet.dir)
+    nbin = max(new.col.df$new_col_bin)
+    tmp <- foreach(bin = 1:nbin, .combine="c") %dopar% {
+      tmp.col.df = new.col.df %>% filter(new_col_bin==bin) %>% select(col_name,new_col_id)      
+      tmp.mat = get_cols(big.dat, tmp.col.df$col_name)
+      i = tmp.mat@i
+      x = tmp.mat@x
+      p = tmp.mat@p
+      j = p[-1] - p[-length(p)]
+      j = rep(tmp.col.df$new_col_id-1, j)
+      df = data.frame(i=i, j=j, x=x)
+      df = df %>% left_join(row.df[,c("i","row_bin")],by="i")
+      path = file.path(parquet.dir, paste0("col_bin=",bin))
+      dir.create(path)
+      print(path)
+      write_dataset(df, path, partition=c("row_bin"))
+    }
+    new.col.df = new.col.df[,c("new_col_id","col_name","new_col_bin")]    
+    colnames(new.col.df)=c("col_id","col_name","col_bin")    
+    write_parquet(new.col.df, sink=col.parquet.fn)
+    big.dat$col.df = new.col.df
+    big.dat$col.fn = col.parquet.fn
+    big.dat$col_id = cols
+    big.dat$parquet.dir = parquet.dir
+    big.dat$ds = open_dataset(big.dat$parquet.dir)
+    return(big.dat)    
+  }
 
-fbm_to_parqeut <- function(big.dat, cols=big.dat$col_id, rows=big.dat$row_id, dir="./",parquet.dir=file.path(dir,"norm.dat_parquet"), col.fn=file.path(dir,"samples.parquet"), row.fn=file.path(dir,"gene.parquet"), row.bin.size = 500,    col.bin.size = 50000)
+fbm_to_parquet <- function(big.dat, cols=big.dat$col_id, rows=big.dat$row_id, dir="./",parquet.dir=file.path(dir,"norm.dat_parquet"), col.fn=file.path(dir,"samples.parquet"), row.fn=file.path(dir,"gene.parquet"), row.bin.size = 500,    col.bin.size = 50000)
   {
     if(!dir.exists(dir)){
       dir.create(dir)

@@ -1,9 +1,8 @@
 library(arrow)
 
-
-find_triplets <- function(de.summary.fn="summary_test", all.pairs, select.cl = NULL, min.up.num=30, max.down.num=10, min.de.num=50)
+find_triplets_big <- function(de.summary="de_summary", all.pairs, select.cl = NULL, min.up.num=30, max.down.num=10, min.de.num=50)
   {
-    ds= open_dataset(de.summary.fn, partition ="pair_bin")
+    ds= open_dataset(de.summary, partition ="pair_bin")
     select.pair = ds %>% filter(up.num > min.up.num & down.num < max.down.num & up.num  - down.num > min.up.num | down.num > min.up.num & up.num < max.down.num & down.num - up.num > min.up.num) %>% collect()
     select.pair = select.pair %>% filter(pair %in% all.pairs$pair)
     pairs = get_pairs(select.pair$pair)    
@@ -107,7 +106,7 @@ check_triplet <- function(de.df, triplet,top.n=50)
   }
 
 
-find_doublets_all <- function(de.fn, triplets.fn, mc.cores=40,blocksize=1000,score.th=0.8, olap.th=1.6,out.dir="doublets_result",overwrite=TRUE)
+find_doublets_all_big <- function(de.fn, triplets.fn, all.pairs, mc.cores=40,blocksize=1000,score.th=0.8, olap.th=1.6,out.dir="doublets_result",overwrite=TRUE)
   {
     require(parallel)
     require(doMC)
@@ -122,8 +121,8 @@ find_doublets_all <- function(de.fn, triplets.fn, mc.cores=40,blocksize=1000,sco
     triplets = open_dataset(triplets.fn)
     tmp = triplets %>% select("pair", "cl.up") %>% group_by(cl.up) %>% collect() %>% summarize(size=n())
     candidates = tmp %>% arrange(-size) %>% pull(cl.up)
-    result.df=foreach::foreach(x=candidates,.combine="rbindlist")%dopar% {
-      print(x)
+    mcoptions <- list(preschedule = FALSE)
+    result.df=foreach::foreach(x=candidates,.combine="rbindlist",.options.multicore = mcoptions)%dopar% {
       fn = file.path(out.dir, paste0(x, ".data.parquet"))
       if(!overwrite & file.exists(fn)){
         result.df = read_parquet(fn)
@@ -153,3 +152,13 @@ find_doublets_all <- function(de.fn, triplets.fn, mc.cores=40,blocksize=1000,sco
   }
 
 
+find_low_quality_big <- function(ds, low.th=2,pairs)
+  {
+    library(arrow)
+    library(dplyr)
+    df = ds %>% filter(up.num < low.th | down.num < low.th) %>% collect
+    df = df %>% left_join(pairs)
+    df = df %>% mutate(cl=ifelse(up.num < low.th,P2, P1))
+    df = df %>% mutate(cl.low=ifelse(up.num < low.th,P1, P2))
+    return(df)
+  }

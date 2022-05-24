@@ -1,4 +1,4 @@
-rd_PCA_big <- function(big.dat, dat, select.cells=big.dat$col_id, max.dim=10, th=2, verbose=TRUE, mc.cores=1,method="zscore")
+rd_PCA_big <- function(big.dat, dat, select.cells=big.dat$col_id, max.dim=10, th=2, verbose=TRUE, mc.cores=1,method="zscore",...)
 {
   system.time({tmp = get_PCA(dat, max.pca=max.dim, verbose=verbose,method=method,th=th)})
   if(is.null(tmp)){
@@ -11,7 +11,7 @@ rd_PCA_big <- function(big.dat, dat, select.cells=big.dat$col_id, max.dim=10, th
     if(verbose){
       print("project")
     }
-    system.time({rd.dat = big_project(big.dat, select.cells, rot, mc.cores=mc.cores)})
+    system.time({rd.dat = big_project(big.dat, select.cells, rot, mc.cores=mc.cores,...)})
   }
   rm(rot)
   rm(dat)
@@ -199,15 +199,7 @@ onestep_clust_big<- function(big.dat,
     if(is.null(merge.result)){
       return(NULL)
     }
-    cl = merge.result$cl
-    de.genes = merge.result$de.genes
-    markers= merge.result$markers
-    result=list(cl=cl, markers=markers)
-    rm(rd.dat.t)
-    rm(merge.result)
-    rm(counts)
-    gc()
-    return(result)
+    return(merge.result)
   }
 
 
@@ -458,7 +450,7 @@ merge_cl_big <- function(big.dat,
         cat("Compute DE genes\n")
       }
       tmp.pairs = merge.pairs[new.pairs,,drop=FALSE] 
-      de.result = de_selected_pairs(norm.dat=NULL, cl=cl, pairs=tmp.pairs, de.param= de.param, method=de.method, cl.means=cl.means, cl.present=cl.present, cl.sqr.means=cl.sqr.means,mc.cores=mc.cores, blocksize=1000)
+      de.result = de_selected_pairs(norm.dat=NULL, cl=cl, pairs=tmp.pairs, de.param= de.param, method=de.method, cl.means=cl.means, cl.present=cl.present, cl.sqr.means=cl.sqr.means,mc.cores=mc.cores)
       tmp.de.genes = de.result$de.genes
       de.genes[names(tmp.de.genes)] = tmp.de.genes
       pairs = get_pairs(names(de.genes))

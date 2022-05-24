@@ -496,7 +496,96 @@ i_harmonize<- function(comb.dat, select.cells=comb.dat$all.cells, ref.sets=names
   }
 
 
+get_de_result_big <- function(comb.dat, cl, sets=names(comb.dat$dat.list),cl.stats.list=NULL, de.d = "de_parquet",de.sum.d = "de_summary",pairs.fn="pairs.parquet",block.size=10000,mc.cores=25,...)
+  {
+    de.result=list()
+    if(is.null(cl.stats.list)){
+      cl.stats.list = get_cl_stats_list(comb.dat, merge.sets=sets, cl=cl,mc.cores=mc.cores)
+    }
+    cl.means.list = cl.stats.list$cl.means.list
+    cl.present.list = cl.stats.list$cl.present.list
+    cl.sqr.means.list = cl.stats.list$cl.sqr.means.list
+    
+    if(file.exists(pairs.fn)){
+      pairs.df=read_parquet(pairs.fn)
+    }
+    else{
+      pairs.df = as.data.frame(create_pairs(unique(cl)))
+      pairs.df$pair_id = 1:nrow(pairs.df)
+      pairs.df$pair = row.names(pairs.df)
+      pairs.df$pair_bin = ceiling(pairs.df$pair_id/block.size)
+      write_parquet(pairs.df, pairs.fn)
+    }
+    dir.create(de.d)
+    dir.create(de.sum.d)
+    
+    for(x in sets){
+      print(x)
+      tmp.cl = cl[names(cl) %in% (comb.dat$dat.list[[x]]$col_id)]
+      if(is.factor(tmp.cl)){
+        tmp.cl= as.factor(tmp.cl)
+      }
+      tmp.de.d = file.path(de.d, x)
+      tmp.de.sum.d = file.path(de.sum.d, x)
+      de.result[[x]] = de_selected_pairs(norm.dat = NULL, cl = tmp.cl, pairs = pairs.df, de.param = comb.dat$de.param.list[[x]], cl.means= cl.means.list[[x]], cl.present=cl.present.list[[x]], cl.sqr.means=cl.sqr.means.list[[x]], mc.cores=mc.cores, out.dir=tmp.de.d, summary.dir = tmp.de.sum.d, return.summary=TRUE,...)
+    }
+    return(de.result)
+  }
 
+
+comb_de_result_big <- function(ds, cl.means.list, pairs, sets=names(cl.means.list), max.num=1000, lfc.conservation.th=0.7, mc.cores=20,out.dir="comb_de_parquet",overwrite=FALSE)
+{
+  library(data.table)  
+  library(dplyr)
+  require(doMC)
+  require(foreach)
+  registerDoMC(cores=mc.cores)
+  if(!dir.exists(out.dir)){
+    dir.create(out.dir)
+  }
+  cl.means.list = sapply(cl.means.list, as.matrix, simplify=FALSE)
+  all.cl = unique(unlist(lapply(cl.means.list,colnames)))
+  all.gene = unique(unlist(lapply(cl.means.list,row.names)))
+  tmp = foreach::foreach(b  = unique(pairs$pair_bin),.combine="c") %dopar% {
+    print(b)
+    tmp.dir = file.path(out.dir, b)
+    if(!dir.exists(tmp.dir)){
+      dir.create(tmp.dir)
+    }
+    de.fn=file.path(tmp.dir, "data.parquet")
+    if(!overwrite & file.exists(de.fn)){
+      cat(de.fn, "exists. Skip\n")
+      return(NULL)
+    }
+    de.df = ds %>% filter(pair_bin==b) %>% collect()
+    de.genes = de.df %>% group_by(pair,sign,gene) %>% summarize(num=n(),rank.mean = mean(rank),logPval=mean(logPval))
+    de.genes = de.genes %>% left_join(pairs[,c("pair","P1","P2")])
+    lfc = list()
+    for(set in sets){
+      cl.means= cl.means.list[[set]]
+      missing.cl = setdiff(all.cl,colnames(cl.means))
+      missing.gene = setdiff(all.gene,row.names(cl.means))
+      select = with(de.genes,!(P1 %in% missing.cl | P2 %in% missing.cl| gene %in% missing.gene))
+      exp1=get_pair_matrix(cl.means, de.genes$gene[select], de.genes$P1[select])
+      exp2=get_pair_matrix(cl.means, de.genes$gene[select], de.genes$P2[select])
+      lfc[[set]] = rep(NA, nrow(de.genes))
+      lfc[[set]][select] = exp1 - exp2
+    }
+    lfc = do.call("cbind",lfc)
+    denom = rowSums(!is.na(lfc))
+    up.ratio = rowSums(lfc > 1, na.rm=TRUE)/denom
+    down.ratio = rowSums(lfc < -1, na.rm=TRUE)/denom
+    lfc.mean = rowMeans(lfc, na.rm=TRUE)    
+    de.genes = cbind(de.genes, data.frame(up.ratio, down.ratio, lfc=lfc.mean))
+    ###dplyr filter is slow for some reason
+    de.genes = with(de.genes,de.genes[sign=="up"& up.ratio > lfc.conservation.th | sign=="down" & down.ratio > lfc.conservation.th,,drop=FALSE])
+    de.genes = de.genes %>% arrange(pair,sign, -num, -abs(lfc))
+    de.genes = de.genes %>% group_by(pair,sign) %>% mutate(rank=1:n())
+    tmp = as.data.frame(de.genes[,colnames(de.df)[1:6]])
+    write_parquet(tmp, sink=de.fn)
+  }
+}
+ 
 get_de_result_recursive <- function(comb.dat, all.results, sets=names(comb.dat$dat.list),ref.dat.list, max.cl.size = 300, ...)
   {
     #impute.dat.list <<- list()
