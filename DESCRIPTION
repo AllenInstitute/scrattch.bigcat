@@ -18,8 +18,6 @@ Encoding: UTF-8
 LazyData: TRUE
 VignetteBuilder: knitr
 RoxygenNote: 7.0.2
-Requires: Matrix
-Requires: Matrix,RcppParallel
 Imports: 
   Rcpp,
   RcppAnnoy,
@@ -27,6 +25,8 @@ Imports:
   RcppProgress,
   RcppParallel,
   BiocNeighbors,	
+  Matrix,
+  matrixStats,
   parallel,
   doMC,
   foreach,
@@ -37,10 +37,7 @@ Imports:
   ggplot2,
   grid,
   dendextend,
-  Matrix,
-  matrixStats,
-  pvclust,
-  dendextend
+  pvclust
 LinkingTo: Rcpp (>= 0.11.0), RcppEigen, RcppProgress, beachmat, RcppParallel	
 Suggests:
   Rtsne,
