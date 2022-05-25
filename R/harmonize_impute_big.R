@@ -62,7 +62,7 @@ impute_knn_big <- function(comb.dat, knn.result.list, select.genes, select.cells
         gene.id = 1:length(select.genes)
         col.df = impute.dat.list[[x]]$col.df 
         col.df = col.df %>% filter(col_names %in% select.cells)
-        foreach(c.id %in% unique(col.df$$col_bin)) %dopar% {
+        foreach(c.id %in% unique(col.df$col_bin)) %dopar% {
           tmp.col.df = col.df %>% filter(col_bin==c.id)
           tmp.cells = tmp.col.df$col_names
           impute.dat = impute_knn(knn[tmp.cells,], reference.id, dat)

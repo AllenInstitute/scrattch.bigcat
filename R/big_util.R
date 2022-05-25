@@ -163,10 +163,10 @@ init_mat_parqeut_dense <- function(dir, col.id, row.id, val=0, col.bin.size=5000
     
     mat = matrix(val, nrow=row.bin.size, ncol=col.bin.size)
     mat.df = as.data.frame(mat)        
-    for(a=unique(col.df$col_bin)){
+    for(a in unique(col.df$col_bin)){
       d = file.path(dir,a)
       dir.create(d)
-      for(b=unique(row.df$row_bin)){
+      for(b in unique(row.df$row_bin)){
         dir.create(file.path(dir,a,b))
         write_parquet(mat.df, file.path(d, "data.parquet"))        
       }
@@ -215,9 +215,9 @@ get_cols_parquet_dense <- function(big.dat, cols, rows, mc.cores=5)
       col.df = read_parquet(file.path(big.dat$parquet.dir, "col.parquet"))
     }
     col.df = col.df %>% filter(col_names %in% cols)    
-    mat=foreach(a=unique(col.df$col_bin), .combine="cbindlist") {
+    mat=foreach(a=unique(col.df$col_bin), .combine="cbindlist") %dopar% {
       tmp.col.df = col.df %>% filter(col_bin==a)      
-      mat = foreach(b=unique(row.df$row_bin),.combine="rbindlist") %dopar% {
+      mat = rbindlist(sapply(unique(row.df$row_bin),function(b){
         tmp.row.df = row.df %>% filter(row_bin==b)
         fn = file.path(big.dat$parquet.dir, a,b, "data.parquet")
         mat =  read_parquet(fn)
@@ -225,7 +225,7 @@ get_cols_parquet_dense <- function(big.dat, cols, rows, mc.cores=5)
         row.names(mat) = tmp.row.df$row_names
         colnames(mat) = tmp.coldf$col_names
         list(mat)
-      }
+      },simplify=FALSE))
       list(mat)
     }
     mat = as.matrix(mat)
