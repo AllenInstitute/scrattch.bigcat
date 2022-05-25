@@ -110,7 +110,7 @@ onestep_clust_big<- function(big.dat,
     if(verbose){
       print("Find high variance genes")
     }   
-    system.time({vg = findVG(counts)})
+    system.time({vg = find_vg(counts)})
     select.genes = with(vg, row.names(vg)[which(loess.padj < vg.padj.th | dispersion >2.5)])
     select.genes = intersect(select.genes, genes.allowed)
     if(length(select.genes) < de.param$min.genes){
