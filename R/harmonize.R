@@ -6,6 +6,39 @@ jet.colors <-colorRampPalette(c("#00007F", "blue", "#007FFF", "cyan","#7FFF7F", 
 blue.red <-colorRampPalette(c("blue", "white", "red"))
 
 
+#' Sample sets lists
+#'
+#' @param cells.list 
+#' @param cl.list 
+#' @param cl.sample.size 
+#' @param sample.size 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+sample_sets_list <- function(cells.list, cl.list, cl.sample.size=100, sample.size=5000)
+  {
+    for(x in names(cells.list)){
+      if(length(cells.list[[x]]) > sample.size){
+        if(is.null(cl.list[[x]])){
+          cells.list[[x]] = sample(cells.list[[x]], sample.size)
+        }
+        else{
+          tmp.cl = cl.list[[x]][cells.list[[x]]]
+          if(is.factor(tmp.cl)){
+            tmp.cl = droplevels(tmp.cl)
+          }
+          cl.size = table(tmp.cl)
+          cells.list[[x]] = sample_cells(tmp.cl, max(cl.sample.size,round(sample.size/sum(cl.size >= 4))))
+        }
+      }
+    }
+    return(cells.list)
+  }
+
+
+
 
 sample_cl_dat <- function(comb.dat, sets, cl, cl.sample.size=200)
   {
@@ -26,6 +59,169 @@ sample_cl_dat <- function(comb.dat, sets, cl, cl.sample.size=200)
     dat.list = dat.list[!sapply(dat.list,is.null)]
     return(dat.list)
   }
+
+knn_combine <- function(result.1, result.2)
+{
+  knn.index = rbind(result.1[[1]], result.2[[1]])
+  knn.distance = rbind(result.1[[2]], result.2[[2]])
+  return(list(knn.index, knn.distance))
+}
+
+#' get knn batch
+#'
+#' @param dat 
+#' @param ref.dat 
+#' @param k 
+#' @param method 
+#' @param dim 
+#' @param batch.size 
+#' @param mc.cores 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+get_knn_batch <- function(dat, ref.dat, k, method="cor", dim=NULL, batch.size, mc.cores=1,return.distance=FALSE,transposed=TRUE, index=NULL,clear.index=FALSE, ntrees=50) 
+  {
+    if(return.distance){
+      fun = "knn_combine"
+    }
+    else{
+      fun = "rbind"
+    }
+    if(is.null(index) & method %in% c("Annoy.Euclidean", "Annoy.Cosine", "cor")) {
+      if(transposed){
+        map.ref.dat = Matrix::t(ref.dat)
+      }
+      else{
+        map.ref.dat = ref.dat
+      }
+      if (method == "cor") {
+        map.ref.dat = map.ref.dat - rowMeans(map.ref.dat)
+        map.ref.dat = l2norm(map.ref.dat, by = "row")
+      }
+      if (method == "Annoy.Cosine") {
+        map.ref.dat = l2norm(map.ref.dat, by = "row")
+      }
+      index = buildAnnoy(map.ref.dat, ntrees = ntrees)
+      rm(map.ref.dat)
+      gc()
+    }    
+    if(transposed){      
+      results <- batch_process(x=1:ncol(dat), batch.size=batch.size, mc.cores=mc.cores, .combine=fun, FUN=function(bin){
+        get_knn(dat=dat[row.names(ref.dat),bin,drop=F], ref.dat=ref.dat, k=k, method=method, dim=dim,return.distance=return.distance, transposed=transposed,index=index,ntrees=ntrees)
+      })
+    }
+    else{
+      results <- batch_process(x=1:nrow(dat), batch.size=batch.size, mc.cores=mc.cores, .combine=fun, FUN=function(bin){
+        get_knn(dat=dat[bin,colnames(ref.dat),drop=F], ref.dat=ref.dat, k=k, method=method, dim=dim,return.distance=return.distance, transposed=transposed,index,ntrees=ntrees)
+      })
+    }
+    if(clear.index){
+      cleanAnnoyIndex(index)
+    }
+    else{
+      if(!is.list(results)){
+        results = list(results)
+      }
+      results$index=index
+    }
+    return(results)
+  }
+
+
+
+#' Get KNN
+#'
+#' @param dat 
+#' @param ref.dat 
+#' @param k 
+#' @param method 
+#' @param dim 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+get_knn <- function(dat, ref.dat, k, method ="cor", dim=NULL,index=NULL, build.index=FALSE, transposed=TRUE, return.distance=FALSE, ntrees=100)
+  {
+    if(transposed){
+      cell.id = colnames(dat)
+    }
+    else{
+      cell.id= row.names(dat)
+    }
+    
+    if(transposed){
+      if(is.null(index)){
+        ref.dat = Matrix::t(ref.dat)
+      }
+      dat = Matrix::t(dat)
+    }
+    if(method=="RANN"){
+      knn.result = RANN::nn2(ref.dat, dat, k=k)
+    }
+    else if(method %in% c("Annoy.Euclidean", "Annoy.Cosine","cor")){
+      library(BiocNeighbors)      
+      if(is.null(index)){
+        if(method=="cor"){
+          ref.dat = ref.dat - Matrix::rowMeans(ref.dat)
+          ref.dat = l2norm(ref.dat,by = "row")
+        }
+        if (method=="Annoy.Cosine"){
+          ref.dat = l2norm(ref.dat,by = "row")
+        }
+        if(build.index){
+          index= buildAnnoy(ref.dat, ntrees=ntrees)
+        }
+      }
+      if (method=="Annoy.Cosine"){
+        dat = l2norm(dat,by="row")
+      }
+      if (method=="cor"){
+        dat = dat - rowMeans(dat)
+        dat = l2norm(dat,by = "row")
+      }
+      knn.result = queryAnnoy(X= ref.dat, query=dat, k=k, precomputed = index)
+    }
+    else if(method == "CCA"){
+      mat3 = crossprod(ref.dat, dat)
+      cca.svd <- irlba(mat3, dim=dim)
+      ref.dat = cca.svd$u
+      dat = cca.svd$v      
+      knn.result =get_knn(dat, ref.dat, method="cor")
+    }
+    else{
+      stop(paste(method, "method unknown"))
+    }    
+    knn.index= knn.result[[1]]
+    knn.distance = knn.result[[2]]
+    row.names(knn.index) = row.names(knn.distance)=cell.id
+    rm(dat)
+    gc()
+    if(!return.distance){
+      return(knn.index)
+    }
+    else{
+      list(index=knn.index, distance=knn.distance)
+    }
+  }
+
+
+
+
+cleanAnnoyIndex <- function(index)
+  {
+    unlink(index@path)
+    rm(index)
+  }
+
+knn_combine <- function(result.1, result.2)
+{
+  knn.index = rbind(result.1[[1]], result.2[[1]])
+  knn.distance = rbind(result.1[[2]], result.2[[2]])
+  return(list(knn.index, knn.distance))
+}
 
 
 
@@ -495,6 +691,19 @@ i_harmonize<- function(comb.dat, select.cells=comb.dat$all.cells, ref.sets=names
     return(all.results)
   }
 
+rm_genes <- function(dat.list, rm.genes)
+  {
+    for(x in names(dat.list)){
+      dat = dat.list[[x]]
+      rm = row.names(dat) %in% rm.genes
+      if(any(rm)){
+        dat = dat[!rm,]
+        dat.list[[x]] = dat
+      }
+    }
+    return(dat.list)
+  }
+
 
 get_de_result_big <- function(comb.dat, cl, sets=names(comb.dat$dat.list),cl.stats.list=NULL, de.d = "de_parquet",de.sum.d = "de_summary",pairs.fn="pairs.parquet",block.size=10000,mc.cores=25,...)
   {
@@ -715,5 +924,102 @@ gene_gene_cor_conservation <- function(dat.list, select.genes, select.cells,pair
     })
     colnames(gene.cor.mat) = paste0(pairs[,1],":",pairs[,2])
     return(gene.cor.mat)
+  }
+
+#' Sim knn
+#'
+#' @param sim 
+#' @param k 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+sim_knn <- function(sim, k=15)
+{
+  require(matrixStats)
+  th =  rowOrderStats(as.matrix(sim), which=ncol(sim)-k+1)
+  select = sim >= th
+  knn.index = t(apply(select, 1, function(x)head(which(x),k)))
+  if(k==1){
+    knn.index= matrix(knn.index, ncol=1)
+  }
+  knn.distance = do.call("rbind",lapply(1:nrow(sim), function(i) (1- sim[i,,drop=F])[knn.index[i,,drop=F]]))
+  return(list(knn.index, knn.distance))
+}
+
+
+#' KNN Jaccard Louvain
+#'
+#' @param knn.index 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+##' .. content for \description{} (no empty lines) ..
+##'
+##' .. content for \details{} ..
+##' @title 
+##' @param knn.index 
+##' @param method 
+##' @param prune 
+##' @return 
+##' @author Zizhen Yao
+knn_jaccard_clust <- function(knn.index, method=c("leiden","louvain"),prune=0.05,return.graph=FALSE,...)
+  {
+    require(igraph)
+    cat("Get jaccard\n")
+    #sim=knn_jaccard(knn.index,...)
+    sim = ComputeSNN(knn.index,prune=prune)
+    rownames(sim) = colnames(sim) = row.names(knn.index)
+    gr <- igraph::graph.adjacency(sim, mode = "undirected", 
+                                  weighted = TRUE)
+    if(method[1]=="louvain"){
+      cat("Louvain clustering\n")
+      result <- igraph::cluster_louvain(gr,...)
+    }
+    else{
+      cat("Leiden clustering\n")
+      library(leidenAlg)
+      result <- leiden.community(gr,...)      
+    }
+    result$cl=membership(result)
+    rm(sim)
+    if(return.graph){
+      result$gr = gr
+    }
+    else{
+      rm(gr)
+    }
+    gc()
+    return(result)
+  }
+
+
+#' combine cl
+#'
+#' @param all.results 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+combine_cl <- function(all.results)
+  {
+    cl = all.results[[1]]$cl
+    cl = setNames(as.integer(cl),names(cl))
+    markers=all.results[[1]]$markers
+    n.cl = max(cl)
+    for(i in 2:length(all.results)){
+      #if(is.null(all.results[[i]]$cl) | length(unique(all.results[[i]]$cl)) < 2) next
+      if(is.null(all.results[[i]]$cl)) next
+      new.cl = all.results[[i]]$cl
+      new.cl = setNames(as.integer(new.cl)+ n.cl,names(new.cl))
+      cl[names(new.cl)] = new.cl
+      n.cl = max(cl)
+      cat(names(all.results)[i], n.cl, "\n")
+    }
+    return(cl)
   }
 
