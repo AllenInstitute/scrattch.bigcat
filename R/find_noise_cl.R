@@ -1,164 +1,330 @@
-library(arrow)
-
-find_triplets_big <- function(de.summary="de_summary", all.pairs, select.cl = NULL, min.up.num=30, max.down.num=10, min.de.num=50)
+#' Get de score
+#'
+#' @param de.df 
+#' @param top.genes 
+#' @param upper 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+get_de_score <- function(de.df, top.genes, upper=20)
   {
-    ds= open_dataset(de.summary, partition ="pair_bin")
-    select.pair = ds %>% filter(up.num > min.up.num & down.num < max.down.num & up.num  - down.num > min.up.num | down.num > min.up.num & up.num < max.down.num & down.num - up.num > min.up.num) %>% collect()
-    select.pair = select.pair %>% filter(pair %in% all.pairs$pair)
-    pairs = get_pairs(select.pair$pair)    
-    pairs$pair = row.names(pairs)
-    
-    select.pair = select.pair %>% left_join(pairs)
-    if(!is.null(select.cl)){
-      select.pair = select.pair %>% filter(P1 %in% select.cl & P2 %in% select.cl)
+    gene.score = -log10(de.df[top.genes,"padj"])
+    gene.score[gene.score > upper] = upper
+    gene.score = sum(gene.score)
+    return(gene.score)
+  }
+
+#' Get de genes sym
+#'
+#' @param de.genes 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+get_de_genes_sym <- function(de.genes)
+  {
+    de.genes.sym = de.genes
+    pairs= names(de.genes)
+    pairs = as.data.frame(do.call("rbind",strsplit(pairs,"_")))
+    row.names(pairs) = names(de.genes)
+    pairs$tmp = paste0(pairs[,2],"_",pairs[,1])
+    de.genes.sym[pairs$tmp] = de.genes[row.names(pairs)]
+    for(i in 1:nrow(pairs)){
+      de.genes.sym[[pairs[i,"tmp"]]]$up.genes = de.genes[[row.names(pairs)[i]]]$down.genes
+      de.genes.sym[[pairs[i,"tmp"]]]$down.genes = de.genes[[row.names(pairs)[i]]]$up.genes 
     }
-    select.pair = select.pair %>% mutate(cl.up= ifelse(up.num > down.num, P1, P2), cl.down =ifelse(up.num > down.num, P2, P1))
-    tmp=table(select.pair$cl.up)
-    select.cl = names(tmp)[tmp > 1]
-    select.pair = select.pair %>% filter(cl.up %in% select.cl)
-    
-    tmp = select.pair[,c("cl.up","cl.down")]
-    triplets = tmp %>% left_join(tmp, by="cl.up")
-    triplets = triplets %>% filter(cl.down.x!=cl.down.y)
-    triplets = triplets %>% mutate(P1 = ifelse(cl.down.x < cl.down.y, cl.down.x, cl.down.y),
-      P2 = ifelse(cl.down.x < cl.down.y, cl.down.y, cl.down.x))
-    triplets = triplets %>% left_join(all.pairs)
-    diff.pair = ds %>% filter(up.num > min.de.num & down.num > min.de.num) %>% pull(pair)
-    triplets = triplets %>% filter(pair %in% diff.pair)
-    triplets = triplets %>% mutate(
-      pair1 = ifelse(cl.up < cl.down.x, paste0(cl.up,"_", cl.down.x), paste0(cl.down.x,"_", cl.up)),
-      pair2 = ifelse(cl.up < cl.down.y, paste0(cl.up,"_", cl.down.y), paste0(cl.down.y,"_", cl.up)))
-    return(triplets)
+    return(de.genes.sym)
+  }
+
+
+#' Get de pair
+#'
+#' @param de.genes 
+#' @param cl1 
+#' @param cl2 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+get_de_pair<- function(de.genes, cl1, cl2)
+  {
+    pair = paste0(cl1, "_", cl2)
+    if(pair %in% names(de.genes)){
+      return(de.genes[[pair]])
+    }
+    else{
+      pair = paste0(cl2, "_", cl1)
+      de = de.genes[[pair]]
+      tmp  = de$up.genes
+      de$up.genes = de$down.genes
+      de$down.genes = tmp
+      return(de)
+    }
+  }
+
+
+#' Find doublet
+#'
+#' @param cl.df 
+#' @param cl.sim 
+#' @param cl.good 
+#' @param de.genes 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+find_doublet <- function(cl.df, cl.sim, cl.good, de.genes=NULL)
+  {    
+    diag(cl.sim)=0
+    if(is.null(de.genes)){
+      stop("Need to specify de.genes")
+    }
+    nn = setNames(cl.good[apply(cl.sim[, cl.good],1, function(x){
+      which.max(x)
+    })],row.names(cl.sim))
+    nn.df= data.frame(cl_label = cl.df[names(nn), "cluster_label"],cl.gene.counts = cl.df[names(nn), "gene.counts"],
+      nn.cl=nn, nn.cl_label = cl.df[as.character(nn),"cluster_label"],nn.cl.gene.counts = cl.df[as.character(nn), "gene.counts"],stringsAsFactors=FALSE)
+    nn.df$pair = paste0(names(nn), "_",nn)
+    nn.df$pair.sim = get_pair_matrix(cl.sim, row.names(nn.df), nn.df$nn.cl)
+    nn.df$up.genes=0
+    nn.df$up.genes.score = 0
+    nn.df$max.olap.cl = NA
+    nn.df$max.olap.genes1 = 0
+    nn.df$max.olap.score1 = 0
+    nn.df$max.olap.ratio1 = 0
+
+    nn.df$max.olap.genes2 = 0
+    nn.df$max.olap.score2 = 0
+    nn.df$max.olap.ratio2 = 0
+
+     
+    for(i in 1:nrow(nn.df)){
+      cl1= row.names(nn.df)[i]
+      cl2=as.character(nn.df$nn.cl[i])
+      de = get_de_pair(de.genes, cl1, cl2)
+      up.genes = head(names(de$up.genes), 50)
+      nn.df$up.genes[i] = length(up.genes)
+      nn.df$up.genes.score[i] = sum(pmin(-log10(de$up.genes[up.genes]),20))
+      
+      up.genes.olap =sapply( setdiff(cl.good, c(cl1,cl2)), function(k){
+        p = paste0(k,"_",cl2)
+        tmp.de = get_de_pair(de.genes, k, cl2)
+        olap.genes= intersect(names(tmp.de$up.genes), up.genes)
+        olap.num = length(olap.genes)
+        olap.score= sum(pmin(-log10(de$up.genes[olap.genes]), 20))
+        c(olap.num, olap.score)
+      })
+      cl3 = names(which.max(up.genes.olap[1,]))
+      nn.df$max.olap.cl[i] = cl3
+      nn.df$max.olap.genes1[i] = up.genes.olap[1,cl3]
+      nn.df$max.olap.score1[i] = up.genes.olap[2,cl3]
+      nn.df$max.olap.ratio1[i] = up.genes.olap[2,cl3]/nn.df$up.genes.score[i]
+      
+      de1 = get_de_pair(de.genes, cl1, cl3)
+      up.genes = head(names(de1$up.genes), 50)
+      up.gene.score= sum(pmin(-log10(de1$up.genes[up.genes]),20))
+      de2 = get_de_pair(de.genes, cl2, cl3)
+      olap.genes = intersect(names(de2$up.genes), up.genes)  
+      nn.df$max.olap.genes2[i] = length(olap.genes)
+      nn.df$max.olap.score2[i] = sum(pmin(-log10(de1$up.genes[olap.genes]),20))
+      nn.df$max.olap.ratio2[i] = nn.df$max.olap.score2[i]/ up.gene.score
+    }
+    nn.df$max.olap.cl_label = cl.df[as.character(nn.df$max.olap.cl),"cluster_label"]
+    nn.df$olap.cl.sim = get_pair_matrix(cl.sim, nn.df$max.olap.cl, nn.df$nn.cl)
+    return(nn.df)
+  }
+
+
+#' Plot doublet
+#'
+#' @param norm.dat 
+#' @param cl 
+#' @param doublet.df 
+#' @param de.genes 
+#' @param all.col 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+plot_doublet <- function(norm.dat, cl, doublet.df, de.genes, all.col)
+  {
+    for(i in 1:nrow(doublet.df)){                                  
+      x = as.character(doublet.df[i, "cl"])
+      y = as.character(doublet.df[i, "cl1"])
+      z = as.character(doublet.df[i, "cl2"])
+      tmp.cl = cl[cl %in% c(x, y, z)]
+      tmp.cl = setNames(factor(as.character(tmp.cl), c(x,y,z)), names(tmp.cl))
+      tmp=display_cl(tmp.cl, norm.dat, prefix=paste0("doublet.",paste(levels(tmp.cl), collapse="_")), col=all.col, max.cl.size=100, de.genes=de.genes)
+    }
   }
 
 
 
-get_de_pair <- function(de.df, cl1, cl2)
-  {
-    tmp.pair = create_pairs(c(cl1, cl2))
-    de = de.df %>% filter(pair %in% row.names(tmp.pair))
-    #flip the sign if cl1!=P1
-    if(cl1!= tmp.pair[,1]){
-      de = de %>% mutate(sign = ifelse(sign=="up","down","up"))
-    }
-    de$P1 = cl1
-    de$P2 = cl2
-    de
-  }
 
 
-check_triplet <- function(de.df, triplet,top.n=50)
+check_triplet <- function(de.genes, cl1,cl2,cl3)
   {
-    de = de.df %>% filter(pair == triplet$pair)    
-    up.genes = with(de %>% filter(sign=="up" & rank <= top.n), setNames(logPval, gene))
-    down.genes = with(de %>% filter(sign=="down" & rank <=top.n), setNames(logPval, gene))
-    up.genes.score= get_de_truncate_score_sum(up.genes)
-    down.genes.score = get_de_truncate_score_sum(down.genes)
+    de = get_de_pair(de.genes, cl1, cl2)
+    up.genes.score = head(de$up.genes, 50)
+    down.genes.score = head(de$down.genes,50)
+    up.genes.score[up.genes.score > 20] = 20
+    down.genes.score[down.genes.score > 20] = 20
+    up.genes = names(up.genes.score)
+    down.genes = names(down.genes.score)
+    up.genes.score=sum(up.genes.score)
+    down.genes.score = sum(down.genes.score)
     
-    tmp1.de = get_de_pair(de.df,triplet$cl.up,triplet$P1)
-    tmp2.de = get_de_pair(de.df,triplet$cl.up,triplet$P2)
-
-
-    tmp.genes=tmp2.de %>% filter(sign=="up") %>% pull(gene)
-    olap.up.genes1 = intersect(tmp.genes, names(up.genes))
+    tmp1.de = get_de_pair(de.genes, cl1, cl3)
+    tmp2.de = get_de_pair(de.genes, cl3, cl2)
+    if(tmp1.de$num < 20 | tmp2.de$num < 20 ){
+      return(NULL)
+    }
+    olap.up.genes1 = intersect(names(tmp2.de$up.genes), up.genes)
     olap.up.num1 = length(olap.up.genes1)
-    olap.up.score1 = get_de_truncate_score_sum(up.genes[olap.up.genes1])   
+    olap.up.score1 = get_de_truncate_score_sum(de$up.genes[olap.up.genes1])
+    
     olap.up.ratio1 = olap.up.score1 / up.genes.score
-
-    tmp.genes=tmp1.de %>% filter(sign=="up") %>% pull(gene)
-    olap.down.genes1 = intersect(tmp.genes, names(down.genes))    
+    
+    olap.down.genes1 = intersect(names(tmp1.de$down.genes), down.genes)
     olap.down.num1 = length(olap.down.genes1)
-    olap.down.score1 = get_de_truncate_score_sum(down.genes[olap.down.genes1])
+    
+    olap.down.score1 = get_de_truncate_score_sum(de$down.genes[olap.down.genes1])
     olap.down.ratio1 = olap.down.score1 / down.genes.score
     
-    up.genes2 =  with(tmp1.de %>% filter(sign=="down" & rank <= top.n), setNames(logPval, gene))
-    up.genes.score2 = get_de_truncate_score_sum(up.genes2)
-    olap.up.genes2 = intersect(names(up.genes2),names(up.genes))
+    up.genes2 = head(names(tmp1.de$up.genes), 50)
+    up.genes.score2 = get_de_truncate_score_sum(tmp1.de$up.genes[up.genes2])          
+    olap.up.genes2 = intersect(names(up.genes2),de$up.genes)
     olap.up.num2 = length(olap.up.genes2)
-    olap.up.score2 = get_de_truncate_score_sum(up.genes2[olap.up.genes2])
+    olap.up.score2 = get_de_truncate_score_sum(tmp1.de$up.genes[olap.up.genes2])
     olap.up.ratio2 = olap.up.score2 /up.genes.score2
     
     
-    down.genes2 = with(tmp2.de %>% filter(sign=="down" & rank <= top.n), setNames(logPval, gene))
-    down.genes.score2 = get_de_truncate_score_sum(down.genes2)
-    olap.down.genes2 = intersect(names(down.genes2),names(down.genes))
+    down.genes2 = head(names(tmp2.de$down.genes), 50)
+    down.genes.score2 = get_de_truncate_score_sum(tmp2.de$down.genes[down.genes2])
+    olap.down.genes2 = intersect(down.genes2,names(de$down.genes))
     olap.down.num2 = length(olap.down.genes2)
-    olap.down.score2 = get_de_truncate_score_sum(down.genes2[olap.down.genes2])
+    olap.down.score2 = get_de_truncate_score_sum(tmp2.de$down.genes[olap.down.genes2])
     olap.down.ratio2 = olap.down.score2 /down.genes.score2
-
-    olap.num=c(olap.up.num1, olap.down.num1, olap.up.num2, olap.down.num2)
-    olap.ratio = c(olap.up.ratio1, olap.down.ratio1, olap.up.ratio2, olap.down.ratio2)
-    olap.score = c(olap.up.score1, olap.down.score1, olap.up.score2, olap.down.score2)
-    names(olap.num) = paste0("olap.num.",c("up.1","down.1","up.2","down.2"))
-    names(olap.ratio) = paste0("olap.ratio.",c("up.1","down.1","up.2","down.2"))
-    score = sum(olap.score) / sum(c(up.genes.score, down.genes.score, up.genes.score2, down.genes.score2))
     
     result = list(
-      cl = triplet[,"cl.up"],
-      cl1= triplet[,"P1"],
-      cl2= triplet[,"P2"],
+      cl1=cl1,
+      cl2=cl2,
       up.num = length(up.genes),
       down.num = length(down.genes),
-      score = score      
-    )
-    result = c(result, olap.ratio, olap.num)
+      olap.num=c(olap.up.num1, olap.down.num1, olap.up.num2, olap.down.num2),
+      olap.ratio = c(olap.up.ratio1, olap.down.ratio1, olap.up.ratio2, olap.down.ratio2),
+      olap.score = c(olap.up.score1, olap.down.score1, olap.up.score2, olap.down.score2)
+      )
+    result$score = sum(result$olap.score) / sum(c(up.genes.score, down.genes.score, up.genes.score2, down.genes.score2))
     return(result)
   }
 
 
-find_doublets_all_big <- function(de.fn, triplets.fn, all.pairs, mc.cores=40,blocksize=1000,score.th=0.8, olap.th=1.6,out.dir="doublets_result",overwrite=TRUE)
-  {
+find_doublet_all <- function(de.genes, mc.cores=5, min.genes=100)
+  {    
     require(parallel)
-    require(doMC)
-    require(foreach)
-    registerDoMC(cores=mc.cores)
-    library(data.table)
-    library(dplyr)
-    if(!dir.exists(out.dir)){
-      dir.create(out.dir)
+    if(is.null(de.genes)){
+      stop("Need to specify de.genes")
     }
-    ds = open_dataset(de.fn, partition="pair_bin")
-    triplets = open_dataset(triplets.fn)
-    tmp = triplets %>% select("pair", "cl.up") %>% group_by(cl.up) %>% collect() %>% summarize(size=n())
-    candidates = tmp %>% arrange(-size) %>% pull(cl.up)
-    mcoptions <- list(preschedule = FALSE)
-    result.df=foreach::foreach(x=candidates,.combine="rbindlist",.options.multicore = mcoptions)%dopar% {
-      fn = file.path(out.dir, paste0(x, ".data.parquet"))
-      if(!overwrite & file.exists(fn)){
-        result.df = read_parquet(fn)
-        return(result.df)
-      }
-      tmp = triplets %>% filter(cl.up==x) %>% collect()
-      result.list= list()
-      for(x in 1:nrow(tmp)){
-        triplet = tmp[x,]
-        pairs =  c(triplet$pair, triplet$pair1, triplet$pair2)
-        tmp.pair.bin=all.pairs %>% filter(pair %in% pairs) %>% pull(pair_bin) %>% unique
-        de.df = ds %>% filter(pair_bin %in% tmp.pair.bin & pair %in% pairs) %>% collect()
-        result = check_triplet(de.df, triplet)
-        result.list = c(result.list, list(result))
-        if(result$score > score.th & result$olap.ratio.up.1 + result$olap.ratio.down.1 > olap.th){
-          print(result)
-          break
+    pairs.df = get_pairs(names(de.genes))        
+    cl = union(pairs.df[,1],pairs.df[,2])
+    result.list=  parallel::pvec(sample(row.names(pairs.df)), function(pairs){
+      result.list= sapply(pairs, function(p){
+        de = de.genes[[p]]
+        if(length(de)==0){
+          return(NULL)
         }
-      }
-      fields = names(result.list[[1]])      
-      result.df = do.call("data.frame",sapply(fields, function(f){
-        sapply(result.list, function(x)x[[f]])
-      },simplify=FALSE))
-      write_parquet(result.df, sink=fn)
-      return(result.df)
+        if(de$up.num < min.genes | de$down.num < min.genes){
+          return(NULL)
+        }
+        cl1 = pairs.df[p,1]
+        cl2 = pairs.df[p,2]
+                
+        results = sapply(setdiff(as.character(cl),c(cl1,cl2)), function(cl3){
+          result = check_triplet(de.genes, cl1,cl2,cl3)
+          return(result)
+        },simplify=F)
+        if(is.null(results) | length(results)==0){
+          return(NULL)
+        }
+        test.score=unlist(sapply(results, function(x)x$score))
+        tmp = names(which.max(test.score))
+        result = results[[tmp]]
+        result$cl = tmp
+        return(result)                                        
+      },simplify=F)
+    },mc.cores=mc.cores)
+
+    result.list = result.list[!sapply(result.list, is.null)]
+    if(is.null(result.list)| length(result.list)==0){
+      return(NULL)
     }
+    cl = sapply(result.list, function(x)x$cl)
+    cl1 = sapply(result.list, function(x)x$cl1)
+    cl2 = sapply(result.list, function(x)x$cl2)
+    
+    up.num = sapply(result.list, function(x)x$up.num)
+    down.num = sapply(result.list, function(x)x$down.num)
+    olap.num.df = t(sapply(result.list, function(x)x$olap.num))
+    colnames(olap.num.df) = paste0("olap.num.",c("up.1","down.1","up.2","down.2"))
+              
+    olap.ratio.df = t(sapply(result.list, function(x)x$olap.ratio))
+    colnames(olap.ratio.df) = paste0("olap.ratio.",c("up.1","down.1","up.2","down.2"))
+    
+    score = sapply(result.list, function(x)x$score)
+    result.df = data.frame(cl=cl, cl1=cl1, cl2=cl2, score=score, up.num=up.num, down.num=down.num,  as.data.frame(olap.num.df), as.data.frame(olap.ratio.df))
+    return(result.df)
   }
 
 
-find_low_quality_big <- function(ds, low.th=2,pairs)
+
+find_low_quality <- function(de.genes=NULL, de.score.mat=NULL,low.th = 2)
   {
-    library(arrow)
     library(dplyr)
-    df = ds %>% filter(up.num < low.th | down.num < low.th) %>% collect
-    df = df %>% left_join(pairs)
-    df = df %>% mutate(cl=ifelse(up.num < low.th,P2, P1))
-    df = df %>% mutate(cl.low=ifelse(up.num < low.th,P1, P2))
-    return(df)
+    if(is.null(de.score.mat)){
+      de.score.mat <- get_de_matrix(de.genes, 
+                                    directed = TRUE, 
+                                    field = "num")
+    }
+    de.score.mat.df = as.data.frame(as.table(de.score.mat))
+    de.score.mat.df = de.score.mat.df %>% filter(Freq < low.th & Var1!=Var2)
+    colnames(de.score.mat.df) = c("cl.low","cl", "up.genes")
+    return(de.score.mat.df)
+  }
+
+#' Plot cl low
+#'
+#' @param norm.dat 
+#' @param cl 
+#' @param low.df 
+#' @param de.genes 
+#' @param all.col 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+plot_low_qc<- function(norm.dat, cl, low.df, de.genes, all.col)
+  {
+    for(i in 1:nrow(low.df)){
+        tmp.cl = droplevels(cl[cl %in% as.character(unlist(low.df[i,1:2]))])
+        tmp=display_cl(tmp.cl, norm.dat, prefix=paste(levels(tmp.cl), collapse="_"), col=all.col, max.cl.size=100, de.genes=de.genes)
+      }
+  }
+
+
+find_doublet_by_marker <- function(cl.means,markers=list(Neuron=c("Slc32a1","Slc17a7","Slc17a6"),Olig=c("Sox10","Opalin"),Astro="Aqp4",Endo="Ly6c1",VLMC="Slc6a13",Peri="Kcnj8",SMC="Acta2",Micro="C1qc"),th=3.5)
+  {
+    library(matrixStats)
+    cl.val=sapply(markers, function(x){
+      colMaxs(cl.means[x,,drop=F])
+    })
+    doublet = rowSums(cl.val > th) > 1 
+    return(t(cl.means[unlist(markers),doublet]))
   }

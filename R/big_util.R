@@ -71,11 +71,17 @@ reorder_big.dat_fbm <- function(big.dat, new.cols,backingfile=NULL)
 
 get_cols <-  function(big.dat, cols, rows=big.dat$row_id, ...)
   {
-    if(big.dat$type=="fbm"){
+    if(!is.list(big.dat)){
+      mat = big.dat[rows, cols]
+    }
+    else if(big.dat$type=="fbm"){
       mat=get_cols_fbm(big.dat, cols, rows=rows, ...)
     }
     else if(big.dat$type=="parquet"){
       mat = get_cols_parquet(big.dat, cols, rows=rows,...)
+    }
+    else if(big.dat$type=="parquet_dens"){
+      mat = get_cols_parquet_dense(big.dat, cols, rows=rows,...)
     }
     return(mat)
   }
@@ -136,6 +142,96 @@ get_counts <- function(big.dat, cols, ...)
     }
     mat
   }
+
+
+init_mat_parqeut_dense <- function(dir, col.id, row.id, val=0, col.bin.size=50000, row.bin.size= 500, mc.cores=10)
+  {
+    library(arrow)
+    if(!dir.create(dir)){
+      stop("Create a new directory")
+    }    
+    row.df = data.frame(row_id=1:length(row.id), row_name=row.id)
+    row.df$row_bin = ceiling((1:nrow(row.df))/row.bin.size)
+    row.df = row.df %>% group_by(row_bin) %>% mutate(row_bin_id=row_id - min(row_id)+1) %>% ungroup
+    
+    col.df = data.frame(col_id=1:length(col.id), col_name=col.id)
+    col.df$col_bin = ceiling((1:nrow(col.df))/col.bin.size)
+    col.df = col.df %>% group_by(col_bin) %>% mutate(col_bin_id=col_id - min(col_id)+1) %>% ungroup
+
+    write_parquet(row.df, sink=file.path(dir,"row.parquet"))
+    write_parquet(col.df, sink=file.path(dir,"col.parquet"))
+    
+    mat = matrix(val, nrow=row.bin.size, ncol=col.bin.size)
+    mat.df = as.data.frame(mat)        
+    for(a=unique(col.df$col_bin)){
+      d = file.path(dir,a)
+      dir.create(d)
+      for(b=unique(row.df$row_bin)){
+        dir.create(file.path(dir,a,b))
+        write_parquet(mat.df, file.path(d, "data.parquet"))        
+      }
+    }
+    big.dat = list(type="parquet.dense", parquet.dir=dir,row_id = row.id, col_id = col.id,row.df=row.df, col.df = col.df)
+    return(big.dat)
+  }        
+
+update_mat_parqeut_dense <- function(big.dat, mat, mc.cores=10)
+  {
+    library(parallel)    
+    require(doMC)
+    require(foreach)
+    registerDoMC(cores=mc.cores)
+    library(arrow)
+    library(dplyr)
+    row.df = read_parquet(file.path(big.dat$parquet.dir, "row.parquet")) %>% filter(row_names %in% row.names(mat))
+    col.df = read_parquet(file.path(big.dat$parquet.dir, "col.parquet")) %>% filter(col_names %in% col.names(mat))
+    foreach(a=unique(col.df$col_bin)) %:%
+      foreach(b=unique(row.df$row_bin)) %dopar% {
+        fn = file.path(big.dat$parquet.dir, a,b, "data.parquet")
+        org.mat =  read_parquet(fn)
+        tmp.col.df = col.df %>% filter(col_bin==a)
+        tmp.row.df = row.df %>% filter(row_bin==b)        
+        tmp.mat = mat[tmp.row.df$row_names, tmp.col.df$col_names]              
+        org.mat[tmp.row.df$row_id, tmp.col.df$col_id] = tmp.mat
+        write_parquet(org.mat, fn)
+      }    
+  }
+
+
+get_cols_parquet_dense <- function(big.dat, cols, rows, mc.cores=5)
+  {
+    library(parallel)    
+    require(doMC)
+    require(foreach)
+    registerDoMC(cores=mc.cores)
+    library(arrow)
+    library(dplyr)
+
+    if(is.null(big.dat$row.df)){
+      row.df = read_parquet(file.path(big.dat$parquet.dir, "row.parquet"))
+    }
+    row.df = row.df %>% filter(row_names %in% rows)
+    if(is.null(big.dat$col.idf)){
+      col.df = read_parquet(file.path(big.dat$parquet.dir, "col.parquet"))
+    }
+    col.df = col.df %>% filter(col_names %in% cols)    
+    mat=foreach(a=unique(col.df$col_bin), .combine="cbindlist") {
+      tmp.col.df = col.df %>% filter(col_bin==a)      
+      mat = foreach(b=unique(row.df$row_bin),.combine="rbindlist") %dopar% {
+        tmp.row.df = row.df %>% filter(row_bin==b)
+        fn = file.path(big.dat$parquet.dir, a,b, "data.parquet")
+        mat =  read_parquet(fn)
+        mat=mat[tmp.row.df$row_id, tmp.col.df$col_id]
+        row.names(mat) = tmp.row.df$row_names
+        colnames(mat) = tmp.coldf$col_names
+        list(mat)
+      }
+      list(mat)
+    }
+    mat = as.matrix(mat)
+    return(mat)    
+  }
+
 
 
 convert_big.dat_parqeut <- function(mat, dir="./",parquet.dir=file.path(dir,"norm.dat_parquet"), col.fn=file.path(dir,"samples.parquet"), row.fn=file.path(dir,"gene.parquet"),col.bin.size=50000, row.bin.size=500,logNormal=TRUE,mc.cores=10)
@@ -432,6 +528,8 @@ get_cols_parquet <- function(big.dat.parquet, cols, rows=NULL,keep.col=FALSE, sp
   }
 
 
+
+
 get_cl_stats_parquet <- function(big.dat.parquet, cl, mc.cores=20,stats=c("means","present","sqr_means"), return.matrix=TRUE)
   {
     library(data.table)
@@ -690,68 +788,3 @@ map_cells_knn_big <- function(big.dat, cl.dat, select.cells, train.index=NULL, m
   }
 
     
-
-get_cols_parquet_old <- function(big.dat.parquet, cols=NULL, rows=NULL,keep.col=FALSE)
-  {
-    library(arrow)
-    library(dplyr)
-    dir = big.dat.parquet$parquet.dir
-    col.fn = big.dat.parquet$col.fn
-    row.fn = big.dat.parquet$row.fn
-    ds = open_dataset(dir)
-    col.df = read_parquet(col.fn)
-    row.df = read_parquet(row.fn)
-    mat.df = ds    
-    if(!is.null(cols)){
-      if(is.character(cols)){      
-        col.df = col.df %>% filter(col_name %in% cols)
-        select.j = sort(col.df$col_id - 1)
-        col.bin = col.df %>% pull(col_bin) %>% unique 
-      }
-      else{
-        col.df = col.df %>% filter(col_id %in% cols)
-        select.j = sort(col.df$col_id - 1)
-        col.bin = col.df %>% pull(col_bin) %>% unique
-        cols = data.table(col_id=cols) %>% left_join(col.df[,c("col_id","col_name")],by="col_id") %>% pull(col_name)        
-      }
-      mat.df = mat.df %>% filter(col_bin %in% col.bin & j %in% select.j)
-    }
-    else{
-      tmp = col.df
-    }
-    if(!is.null(rows)){      
-      if(is.character(rows)){      
-        row.df = row.df %>% filter(row_name %in% rows)
-        select.i = sort(row.df$row_id) - 1
-        row.bin = row.df %>% pull(row_bin) %>% unique            
-      }
-      else{
-        row.df = row.df %>% filter(row_id %in% rows)
-        select.i = sort(row.df$row_id) - 1
-        row.bin = row.df %>% pull(row_bin)%>% unique        
-      }
-      mat.df = mat.df %>% filter(row_bin %in% row.bin & i %in% select.i)    
-    }
-    else{
-      select.i = row.df$row_id
-    }
-    mat.df = mat.df %>% select(i,j,x) %>% collect()
-
-    col.df$new_j = 1:nrow(col.df)
-    col.id = rep(0, max(col.df$col_id))
-    col.id[col.df$col_id] = col.df$new_j
-    
-    row.df$new_i = 1:nrow(row.df)
-    row.id = rep(0, max(row.df$row_id))
-    row.id[row.df$row_id] = row.df$new_i
-    
-    
-    library(Matrix)
-    mat = sparseMatrix(i = row.id[mat.df$i+1], j=col.id[mat.df$j+1], x=mat.df$x, dims=c(nrow(row.df),nrow(col.df)))
-    colnames(mat) = col.df$col_name
-    row.names(mat) = row.df$row_name
-    if(keep.col){
-      mat = mat[,cols]
-    }
-    return(mat)
-  }

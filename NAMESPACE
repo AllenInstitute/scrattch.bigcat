@@ -1,1 +1,6 @@
+useDynLib(scrattch.bigcat)
+importFrom(Rcpp, sourceCpp)
+importFrom(Rcpp, evalCpp)
+importFrom(RcppParallel, RcppParallelLibs)
 exportPattern("^[[:alpha:]]+")
+
