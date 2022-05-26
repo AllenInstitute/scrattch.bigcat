@@ -1023,3 +1023,33 @@ combine_cl <- function(all.results)
     return(cl)
   }
 
+
+
+#' Batch process
+#'
+#' @param x 
+#' @param batch.size 
+#' @param FUN 
+#' @param mc.cores 
+#' @param .combine 
+#' @param ... 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+batch_process <- function(x, batch.size, FUN, mc.cores=1, .combine="c",bins=NULL,...)
+  {
+    require(foreach)
+    require(doMC)
+    if(is.null(bins)){
+      bins = split(x, floor((1:length(x))/batch.size))
+    }
+    mc.cores=min(mc.cores, length(bins))
+    registerDoMC(cores=mc.cores)
+    results= foreach(i=1:length(bins), .combine=.combine) %dopar% {
+      FUN(bins[[i]],...)
+    }
+    return(results)
+  }
+
