@@ -234,7 +234,7 @@ get_cols_parquet_dense <- function(big.dat, cols, rows, mc.cores=5)
 
 
 
-convert_big.dat_parqeut <- function(mat, dir="./",parquet.dir=file.path(dir,"norm.dat_parquet"), col.fn=file.path(dir,"samples.parquet"), row.fn=file.path(dir,"gene.parquet"),col.bin.size=50000, row.bin.size=500,logNormal=TRUE,mc.cores=10)
+convert_big.dat_parquet <- function(mat, dir=getwd(),parquet.dir=file.path(dir,"norm.dat_parquet"), col.fn=file.path(dir,"samples.parquet"), row.fn=file.path(dir,"gene.parquet"),col.bin.size=50000, row.bin.size=500,logNormal=TRUE,mc.cores=10)
   {
     if(!dir.exists(dir)){
       dir.create(dir)
@@ -248,7 +248,8 @@ convert_big.dat_parqeut <- function(mat, dir="./",parquet.dir=file.path(dir,"nor
     write_parquet(col.df, col.fn)
 
     
-    row.id = row.names(mat.list[[1]])
+    #row.id = row.names(mat.list[[1]])
+    row.id = rownames(mat)
     row.df = data.frame(row_id=1:length(row.id), row_name=row.id)
     row.df$row_bin = ceiling((1:nrow(row.df))/row.bin.size)
     write_parquet(row.df, row.fn)
@@ -272,7 +273,7 @@ convert_big.dat_parqeut <- function(mat, dir="./",parquet.dir=file.path(dir,"nor
       dir.create(path)
       write_dataset(df, path, partition=c("row_bin"))      
     }
-    big.dat = list(type = "parquet", row_id = row.df$row_name, col_id = col.df$col_name, logNormal=logNormal,col.fn = col.fn, row.fn = row.fn, parquet.dir = parquet.dir)    
+    big.dat = list(type = "parquet", row_id = row.df$row_name, col_id = col.df$col_name, logNormal=logNormal,col.fn = col.fn, row.fn = row.fn, parquet.dir = parquet.dir,row.df=row.df, col.df = col.df)    
     return(big.dat)    
   }
 
@@ -289,20 +290,30 @@ convert_big.dat_parqeut <- function(mat, dir="./",parquet.dir=file.path(dir,"nor
 append_big.dat_parquet <- function(mat, big.dat, col.bin.size=50000, row.bin.size=500, mc.cores=10)
   {
     parquet.dir = big.dat$parquet.dir
-    col.df = read_parquet(big.dat$col.fn)
+    if(is.null(big.dat$col.df)){
+      col.df = read_parquet(big.dat$col.fn)
+    }
+    else{
+      col.df = big.dat$col.df
+    }
     max.bin = max(col.df$col_bin)
-    max.id = max(col.df$col_id)
-    
+    max.id = max(col.df$col_id)    
     new.col.df = data.table(col_name=colnames(mat),col_id = 1:ncol(mat))
-    new.col.df$col_bin = ceiling((1:nrow(new.col.df))/col.bin.size) + max.bin    
-    row.df = read_parquet(big.dat$row.fn)
+    new.col.df$col_bin = ceiling((1:nrow(new.col.df))/col.bin.size) + max.bin
+    if(is.null(big.dat$row.df)){
+      row.df = read_parquet(big.dat$row.fn)
+    }
+    else{
+      row.df = big.dat$row.df
+    }
     row.df$i = row.df$row_id - 1
     library(parallel)    
     require(doMC)
     require(foreach)
-    registerDoMC(cores=mc.cores)
-    tmp <- foreach(bin = unique(new.col.df$col_bin), .combine="c") %dopar% {            
-      col.id = col.df %>% filter(col_bin==bin) %>% pull(col_id)
+    bins = unique(new.col.df$col_bin)
+    registerDoMC(cores= min(mc.cores, length(bins)))
+    tmp <- foreach(bin = bins, .combine="c") %dopar% {            
+      col.id = new.col.df %>% filter(col_bin==bin) %>% pull(col_id)
       tmp.mat = mat[,col.id]
       i = tmp.mat@i
       x = tmp.mat@x
@@ -319,21 +330,50 @@ append_big.dat_parquet <- function(mat, big.dat, col.bin.size=50000, row.bin.siz
     new.col.df$col_id = new.col.df$col_id + max.id
     col.df = rbindlist(list(col.df, new.col.df))    
     write_parquet(col.df, sink=big.dat$col.fn)
-    big.dat$col_id = c(big.dat$col_id, new.col.df$col_name)    
+    big.dat$col_id = c(big.dat$col_id, new.col.df$col_name)
+    big.dat$col.df = col.df
     return(big.dat)    
   }
 
-reorder_big.dat_parquet <- function(big.dat, cols, parquet.dir, col.parquet.fn, col.bin.size=50000,mc.cores=10)
+convert_mat_list_big.dat_parquet <- function(mat.fn.list, dir=getwd(),parquet.dir=file.path(dir,"norm.dat_parquet"), col.fn=file.path(dir,"samples.parquet"), row.fn=file.path(dir,"gene.parquet"),col.bin.size=50000, row.bin.size=500,logNormal=TRUE,mc.cores=10)
+  {
+    load(mat.fn.list[[1]])
+    cat(mat.fn.list[[1]],ncol(mat),"cells\n")
+    big.dat = convert_big.dat_parquet(mat, dir=dir, parquet.dir = parquet.dir, col.fn=col.fn, row.fn=row.fn, col.bin.size=col.bin.size, row.bin.size=row.bin.size, logNormal=logNormal, mc.cores=mc.cores)
+    if(length(mat.fn.list)>1){
+      for(i in 2:length(mat.fn.list)){        
+        load(mat.fn.list[[i]])
+        cat(mat.fn.list[[i]],ncol(mat),"cells\n")
+        big.dat=append_big.dat_parquet(mat, big.dat, col.bin.size=col.bin.size, row.bin.size=row.bin.size, mc.cores=mc.cores)
+      }
+    }
+    return(big.dat)        
+  }
+
+
+reorder_big.dat_parquet <- function(big.dat, cols, dir=getwd(),parquet.dir=file.path(dir,"norm.dat_parquet"), col.fn=file.path(dir,"samples.parquet"), row.fn=file.path(dir,"gene.parquet"), col.bin.size=50000,mc.cores=10)
   {
     big.dat = init_big.dat_parquet(big.dat)
+    if(!dir.exists(dir)){
+      dir.create(dir)
+    }
+    if(!dir.exists(parquet.dir)){
+      dir.create(parquet.dir)
+    }
+    file.copy(big.dat$row.fn, row.fn)
     row.df = big.dat$row.df
     row.df$i = row.df$row_id - 1
     new.col.df = big.dat$col.df
     new.col.df$new_col_id = match(new.col.df$col_name, cols)
     new.col.df = new.col.df %>% filter(!is.na(new_col_id)) %>% arrange(new_col_id)
     new.col.df$new_col_bin = ceiling(new.col.df$new_col_id/col.bin.size)
+    
     dir.create(parquet.dir)
     nbin = max(new.col.df$new_col_bin)
+    library(parallel)    
+    require(doMC)
+    require(foreach)
+    registerDoMC(cores= min(mc.cores, nbin))    
     tmp <- foreach(bin = 1:nbin, .combine="c") %dopar% {
       tmp.col.df = new.col.df %>% filter(new_col_bin==bin) %>% select(col_name,new_col_id)      
       tmp.mat = get_cols(big.dat, tmp.col.df$col_name)
@@ -351,10 +391,11 @@ reorder_big.dat_parquet <- function(big.dat, cols, parquet.dir, col.parquet.fn, 
     }
     new.col.df = new.col.df[,c("new_col_id","col_name","new_col_bin")]    
     colnames(new.col.df)=c("col_id","col_name","col_bin")    
-    write_parquet(new.col.df, sink=col.parquet.fn)
-    big.dat$col.df = new.col.df
-    big.dat$col.fn = col.parquet.fn
-    big.dat$col_id = cols
+    write_parquet(new.col.df, sink=col.fn)
+    big.dat$col.df = new.col.df    
+    big.dat$col.fn = col.fn
+    big.dat$row.fn = row.fn
+    big.dat$col_id = cols    
     big.dat$parquet.dir = parquet.dir
     big.dat$ds = open_dataset(big.dat$parquet.dir)
     return(big.dat)    
@@ -438,9 +479,17 @@ init_big.dat_parquet <- function(big.dat.parquet)
     dir = big.dat.parquet$parquet.dir
     col.fn = big.dat.parquet$col.fn
     row.fn = big.dat.parquet$row.fn
-    
+    if(!dir.exists(dir)){
+      stop(paste("Data directory ", dir, "does not exists\n"))
+    }
     ds = open_dataset(dir)
+    if(!file.exists(col.fn)){
+      stop(paste("col.fn", col.fn, "does not exists\n"))
+    }
     col.df = read_parquet(col.fn)
+    if(!file.exists(row.fn)){
+      stop(paste("row.fn", row.fn, "does not exists\n"))
+    }
     row.df = read_parquet(row.fn)
     big.dat.parquet$ds = ds
     big.dat.parquet$col.df = col.df
@@ -502,7 +551,7 @@ get_cols_parquet <- function(big.dat.parquet, cols, rows=NULL,keep.col=FALSE, sp
     library(parallel)    
     require(doMC)
     require(foreach)
-    registerDoMC(cores=mc.cores)
+    registerDoMC(cores=min(mc.cores, length(col.bin)))
     tmp <- foreach(c.id = col.bin, .combine="c") %:%      
       foreach(r.id =row.bin, .combine="c") %dopar% {
         mat.df = ds %>% filter(r.id==row_bin & c.id==col_bin  & j %in% select.j & i %in% select.i) %>% select(i,j,x) %>% collect()
@@ -528,6 +577,34 @@ get_cols_parquet <- function(big.dat.parquet, cols, rows=NULL,keep.col=FALSE, sp
   }
 
 
+big.dat_logNormal_parquet <- function(big.dat, parquet.dir, denom=10^6,mc.cores=10)
+  {
+    if(big.dat$logNormal){
+      return(big.dat)
+    }
+    dir.create(parquet.dir)
+    big.dat.new = big.dat
+    big.dat = init_big.dat_parquet(big.dat)    
+    ds = big.dat$ds
+    library(parallel)    
+    require(doMC)
+    require(foreach)
+    registerDoMC(cores=min(mc.cores, length(bins)))
+    tmp <- foreach(bin= bins, .combine="c") %dopar% {      
+      map.df = ds %>% filter(col_bin ==bin) %>% collect()
+      sf=map.df %>% group_by(j) %>% summarize(sf=sum(x)/denom)      
+      map.df = map.df %>% left_join(sf) %>% mutate(x.norm = log2(x/sf+1))
+      tmp.map.df = map.df %>% mutate(x=x.norm) %>% select(i,j,x,"row_bin")
+      path = file.path(parquet.dir, paste0("col_bin=", bin))
+      dir.create(path)
+      print(path)
+      write_dataset(tmp.map.df, path, partition = c("row_bin"))
+      NULL
+    }
+    big.dat.new$parquet.dir = parquet.dir
+    big.dat.new$ds = NULL
+    return(big.dat.new)
+  }
 
 
 get_cl_stats_parquet <- function(big.dat.parquet, cl, mc.cores=20,stats=c("means","present","sqr_means"), return.matrix=TRUE)
@@ -691,7 +768,7 @@ get_big_bins <- function(big.dat, cols, block.size=10000)
       col.df = col.df %>% filter(col_id %in% cols)
       col.df$new_bin = ceiling(1:nrow(col.df)/block.size)
       match.bin=col.df %>% group_by(col_bin) %>% summarize(match_bin=min(new_bin))
-      col.df = col.df %>% left_join(match.bin, by="col_bin")
+      col.df = col.df %>% left_join(match.bin, by="col_bin")      
       bins = with(col.df, split(col_id, match_bin))
     }
     else{

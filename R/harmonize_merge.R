@@ -1,4 +1,43 @@
-##' .. content for \description{} (no empty lines) ..
+#' Title
+#'
+#' @param cl.rd 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+get_cl_sim <- function(cl.rd)
+{
+  if(ncol(cl.rd)>2 & nrow(cl.rd) > 2){
+    sim=cor(cl.rd)
+  }
+  else{
+    cl.diff=as.matrix(dist(t(cl.rd)))
+    sim = 1 - cl.diff/max(cl.diff)
+  }
+  return(sim)
+}
+
+
+get_cl_sim_multiple <- function(cl.rd.list, FUN =pmax)
+  {
+    all.cl = unique(unlist(lapply(cl.rd.list, colnames)))
+    cl.sim = matrix(-1, nrow=length(all.cl),ncol=length(all.cl))
+    colnames(cl.sim) = row.names(cl.sim) = all.cl
+    cl.rd.list = cl.rd.list[!sapply(cl.rd.list, is.null)]
+    for(cl.rd in cl.rd.list){
+      if(nrow(cl.rd) <= 1){
+        next
+      }
+      tmp.sim = get_cl_sim(cl.rd)
+      cl.sim[row.names(tmp.sim),colnames(tmp.sim)] = FUN(tmp.sim, cl.sim[row.names(tmp.sim),colnames(tmp.sim)])
+    }
+    diag(cl.sim)=1
+    return(cl.sim)
+  }
+
+
+##' ##' .. content for \description{} (no empty lines) ..
 ##'
 ##' .. content for \details{} ..
 ##' @title 

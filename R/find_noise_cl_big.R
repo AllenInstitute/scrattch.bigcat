@@ -12,22 +12,26 @@ find_triplets_big <- function(de.summary="de_summary", all.pairs, select.cl = NU
     if(!is.null(select.cl)){
       select.pair = select.pair %>% filter(P1 %in% select.cl & P2 %in% select.cl)
     }
-    select.pair = select.pair %>% mutate(cl.up= ifelse(up.num > down.num, P1, P2), cl.down =ifelse(up.num > down.num, P2, P1))
+    select.pair = select.pair %>% mutate(cl.up= ifelse(up.num > down.num, P1, P2), cl.down =ifelse(up.num > down.num, P2, P1), up.num.new = ifelse(up.num > down.num, up.num, down.num), down.num.new = ifelse(up.num > down.num, down.num, up.num))
+    
     tmp=table(select.pair$cl.up)
     select.cl = names(tmp)[tmp > 1]
     select.pair = select.pair %>% filter(cl.up %in% select.cl)
     
-    tmp = select.pair[,c("cl.up","cl.down")]
+    tmp = select.pair[,c("cl.up","cl.down","up.num.new","down.num.new")]
     triplets = tmp %>% left_join(tmp, by="cl.up")
     triplets = triplets %>% filter(cl.down.x!=cl.down.y)
     triplets = triplets %>% mutate(P1 = ifelse(cl.down.x < cl.down.y, cl.down.x, cl.down.y),
       P2 = ifelse(cl.down.x < cl.down.y, cl.down.y, cl.down.x))
     triplets = triplets %>% left_join(all.pairs)
     diff.pair = ds %>% filter(up.num > min.de.num & down.num > min.de.num) %>% pull(pair)
-    triplets = triplets %>% filter(pair %in% diff.pair)
+    triplets = triplets %>% filter(pair %in% diff.pair) 
     triplets = triplets %>% mutate(
       pair1 = ifelse(cl.up < cl.down.x, paste0(cl.up,"_", cl.down.x), paste0(cl.down.x,"_", cl.up)),
       pair2 = ifelse(cl.up < cl.down.y, paste0(cl.up,"_", cl.down.y), paste0(cl.down.y,"_", cl.up)))
+    tmp.cols=c("up.num.new.x","up.num.new.x","down.num.new.x","down.num.new.y")
+    colnames(triplets)[match(tmp.cols,colnames(triplets))] = gsub("\\.new", "", tmp.cols)
+    triplets = triplets %>% arrange(cl.up, down.num.x + down.num.y)
     return(triplets)
   }
 
@@ -106,21 +110,26 @@ check_triplet_big<- function(de.df, triplet,top.n=50)
   }
 
 
-find_doublets_all_big <- function(de.fn, triplets.fn, all.pairs, mc.cores=40,blocksize=1000,score.th=0.8, olap.th=1.6,out.dir="doublets_result",overwrite=TRUE)
+find_doublets_all_big <- function(de.dir, summary.dir = NULL, triplets.fn=NULL, all.pairs, mc.cores=40,score.th=0.8, olap.th=1.6,out.dir="doublets_result",overwrite=TRUE,...)
   {
     require(parallel)
     require(doMC)
     require(foreach)
-    registerDoMC(cores=mc.cores)
     library(data.table)
     library(dplyr)
     if(!dir.exists(out.dir)){
       dir.create(out.dir)
     }
-    ds = open_dataset(de.fn, partition="pair_bin")
-    triplets = open_dataset(triplets.fn)
+    ds = open_dataset(de.dir, partition="pair_bin")
+    if(!is.null(triplets.fn)){
+      triplets = open_dataset(triplets.fn)
+    }
+    else{
+      triplets=find_triplets_big(de.summary=summary.dir, all.pairs, ...)
+    }
     tmp = triplets %>% select("pair", "cl.up") %>% group_by(cl.up) %>% collect() %>% summarize(size=n())
     candidates = tmp %>% arrange(-size) %>% pull(cl.up)
+    registerDoMC(cores=min(mc.cores,length(candidates)))
     mcoptions <- list(preschedule = FALSE)
     result.df=foreach::foreach(x=candidates,.combine="rbindlist",.options.multicore = mcoptions)%dopar% {
       fn = file.path(out.dir, paste0(x, ".data.parquet"))
@@ -129,6 +138,7 @@ find_doublets_all_big <- function(de.fn, triplets.fn, all.pairs, mc.cores=40,blo
         return(result.df)
       }
       tmp = triplets %>% filter(cl.up==x) %>% collect()
+      cat(x, "triplets:", nrow(tmp),"\n")
       result.list= list()
       for(x in 1:nrow(tmp)){
         triplet = tmp[x,]

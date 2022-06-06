@@ -121,8 +121,8 @@ get_knn_batch <- function(dat, ref.dat, k, method="cor", dim=NULL, batch.size, m
       cleanAnnoyIndex(index)
     }
     else{
-      if(!is.list(results)){
-        results = list(results)
+      if(!return.distance){
+        results = list(knn.index=results)
       }
       results$index=index
     }
@@ -203,7 +203,7 @@ get_knn <- function(dat, ref.dat, k, method ="cor", dim=NULL,index=NULL, build.i
       return(knn.index)
     }
     else{
-      list(index=knn.index, distance=knn.distance)
+      list(knn.index=knn.index, knn.distance=knn.distance)
     }
   }
 
@@ -220,7 +220,7 @@ knn_combine <- function(result.1, result.2)
 {
   knn.index = rbind(result.1[[1]], result.2[[1]])
   knn.distance = rbind(result.1[[2]], result.2[[2]])
-  return(list(knn.index, knn.distance))
+  return(list(knn.index=knn.index, knn.distance=knn.distance))
 }
 
 
@@ -402,6 +402,7 @@ compute_knn <- function(comb.dat, select.genes, ref.list, ref.dat.list=NULL, sel
         if(length(map.cells)==0){
           return(NULL)
         }
+        cat("map cells",length(map.cells),"\n")
         map.index=NULL
         if(!is.null(index)){
           if(length(map.select.genes)==ncol(index)){
