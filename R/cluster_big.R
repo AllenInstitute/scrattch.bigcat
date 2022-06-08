@@ -25,10 +25,10 @@ big_project <- function(big.dat, select.cells, rot, mc.cores=1,...)
     my_project <- function(big.dat, cols){
       fn = tempfile()
       dat = get_logNormal(big.dat, cols)
-      dat = dat[row.names(rot),]
+      dat = dat[row.names(rot),,drop=FALSE]
       dat = Matrix::crossprod(dat, rot)
       df= as.data.frame(as.matrix(dat))
-      df$gene = row.names(df)      
+      df$cell_id = row.names(df)      
       write_parquet(df, sink=fn)
       rm(df)
       rm(dat)
@@ -39,7 +39,7 @@ big_project <- function(big.dat, select.cells, rot, mc.cores=1,...)
     library(arrow)
     df = open_dataset(rd.dat.fn) %>% collect()
     rd.dat = as.matrix(df[,1:(ncol(df)-1)])
-    row.names(rd.dat)=df$gene
+    row.names(rd.dat)=df$cell_id
     unlink(rd.dat.fn)
     return(rd.dat)
   }
@@ -193,7 +193,7 @@ onestep_clust_big<- function(big.dat,
     if(verbose){
       print("merge cluster")
     }
-    merge.result=merge_cl_big(big.dat, cl=cl, rd.dat=rd.dat, merge.type=merge.type, de.param=de.param, max.cl.size=max.cl.size, verbose=verbose, return.markers=TRUE,mc.cores=mc.cores)
+    merge.result=merge_cl_big(big.dat, cl=cl, rd.dat=rd.dat, merge.type=merge.type, de.param=de.param, max.cl.size=max.cl.size, verbose=verbose, return.markers=TRUE,mc.cores=mc.cores,genes.allowed=genes.allowed)
     #rm(norm.dat)
     gc()
     if(is.null(merge.result)){
@@ -227,7 +227,7 @@ iter_clust_big<- function(big.dat=NULL,
                           result = NULL,
                           method = "auto",
                           counts = NULL,
-                          sampleSize = 10000,
+                          sampleSize = 50000,
                           mc.cores=10,
                           overwrite=TRUE,
                           verbose=FALSE,
@@ -353,39 +353,19 @@ get_cols_delayedArray <- function(big.dat_delayedArray, cols, keep.col=TRUE, spa
 
 
 
-get_cl_stats_fbm <- function(big.dat, cl, max.cells=100000, stats=c("means"))
-  {
-    if(!is.factor(cl)){
-      cl = as.factor(cl)
-    }
-    cl.size = table(cl)
-    cl.bins=round(cumsum(cl.size) / max.cells)
-    cl.bins=split(names(cl.size), cl.bins)
-    tmp.results=sapply(cl.bins, function(select.cl){
-      tmp.cl= droplevels(cl[cl %in% select.cl])      
-      dat = get_logNormal(big.dat, names(tmp.cl))
-      result = sapply(stats, function(x){
-          get_cl_stats(dat, cl=tmp.cl,stats=x)
-      }, simplify=F)
-    },simplify=F)
-    cl.results = sapply(stats, function(x){
-      do.call("cbind",sapply(tmp.results, function(result) result[[x]], simplify=F))
-    },simplify=F)
-    return(cl.results)    
-  }
-
 merge_cl_big <- function(big.dat,
-                    cl, 
-                    rd.dat=NULL,
-                    rd.dat.t = NULL,
-                    de.param = de_param(), 
-                    merge.type = c("undirectional","directional"), 
-                    max.cl.size = 300,
-                    de.genes = NULL, 
-                    return.markers = FALSE,
-                    verbose = 0,
-                    k=4,
-                    mc.cores=1)
+                         cl, 
+                         rd.dat=NULL,
+                         rd.dat.t = NULL,
+                         de.param = de_param(), 
+                         merge.type = c("undirectional","directional"), 
+                         max.cl.size = 300,
+                         de.genes = NULL, 
+                         return.markers = FALSE,
+                         verbose = 0,
+                         genes.allowed=NULL,
+                         k=4,
+                         mc.cores=1)
   {
     de.method = "fast_limma"
     if(!is.integer(cl)){
@@ -432,7 +412,7 @@ merge_cl_big <- function(big.dat,
       cl.size = cl.size[names(cl.size)!=p[2]]
     }
     tmp.cl = cl[names(cl) %in% big.dat$col_id]
-    tmp = get_cl_stats_big(big.dat, cl, max.cl.size=max.cl.size, stats=c("means","present","sqr_means"),mc.cores=mc.cores)
+    tmp = get_cl_stats_big(big.dat, cl, max.cl.size=max.cl.size, stats=c("means","present","sqr_means"),mc.cores=mc.cores, genes.allowed=genes.allowed)
     cl.means = as.data.frame(tmp$means)
     cl.present = as.data.frame(tmp$present)    
     cl.sqr.means = as.data.frame(tmp$sqr_means)

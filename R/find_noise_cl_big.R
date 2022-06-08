@@ -110,7 +110,7 @@ check_triplet_big<- function(de.df, triplet,top.n=50)
   }
 
 
-find_doublets_all_big <- function(de.dir, summary.dir = NULL, triplets.fn=NULL, all.pairs, mc.cores=40,score.th=0.8, olap.th=1.6,out.dir="doublets_result",overwrite=TRUE,...)
+find_doublets_all_big <- function(de.dir, summary.dir = NULL, triplets=NULL, all.pairs, mc.cores=40,score.th=0.8, olap.th=1.6,out.dir="doublets_result",overwrite=TRUE,...)
   {
     require(parallel)
     require(doMC)
@@ -121,10 +121,7 @@ find_doublets_all_big <- function(de.dir, summary.dir = NULL, triplets.fn=NULL, 
       dir.create(out.dir)
     }
     ds = open_dataset(de.dir, partition="pair_bin")
-    if(!is.null(triplets.fn)){
-      triplets = open_dataset(triplets.fn)
-    }
-    else{
+    if(is.null(triplets)){
       triplets=find_triplets_big(de.summary=summary.dir, all.pairs, ...)
     }
     tmp = triplets %>% select("pair", "cl.up") %>% group_by(cl.up) %>% collect() %>% summarize(size=n())
@@ -157,7 +154,7 @@ find_doublets_all_big <- function(de.dir, summary.dir = NULL, triplets.fn=NULL, 
         sapply(result.list, function(x)x[[f]])
       },simplify=FALSE))
       write_parquet(result.df, sink=fn)
-      return(result.df)
+      return(list(result.df))
     }
   }
 

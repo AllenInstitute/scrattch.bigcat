@@ -975,7 +975,7 @@ de_all_pairs <- function(norm.dat,
     pairs$pair_id = 1:nrow(pairs)
     library(arrow)
     write_parquet(pairs, sink=pairs.fn)
-    pairs = pairs.fn
+    pairs=pairs.fn
   }
   de.result=de_selected_pairs(norm.dat,
     cl = cl,
@@ -1249,12 +1249,12 @@ export_de_genes<- function(de.genes, cl.means, out.dir="de_parquet", pairs=NULL,
       pairs = pairs %>% filter(pair %in% names(de.genes))
     }
     if(is.null(pairs$pair_id)){
-      pairs$pair_id = 1:nrow(pairs)
+      pairs = pairs %>% mutate(pair_id=1:nrow(pairs))
     }    
     if(is.null(pairs$pair_bin)){
-      pairs$pair_bin = ceiling(pairs$pair_id/block.size)
+      pairs = pairs %>% mutate(pair_bin=ceiling(pair_id/block.size))
     }
-    bins = unique(pairs$pair_bin)
+    bins = pairs %>% pull(pair_bin) %>% unique
     require(doMC)
     require(foreach)
     registerDoMC(cores=mc.cores)
@@ -1324,11 +1324,8 @@ de_pair_summary <- function(de.genes, pairs=NULL, mc.cores=1, block.size=10000, 
     if(is.null(pairs$pair_bin)){
       pairs$pair_bin = ceiling(pairs$pair_id/block.size)
     }
-    bins = unique(pairs$pair_bin)
-    
+    bins = unique(pairs$pair_bin)    
     cols = c("num","up.num","down.num","score", "up.score","down.score")
-    bin = ceiling(1:length(pairs)/block.size)
-    nbin = max(bin)
     require(doMC)
     require(foreach)
     mc.cores = min(mc.cores, length(bins))

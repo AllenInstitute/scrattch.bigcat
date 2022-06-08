@@ -607,7 +607,32 @@ big.dat_logNormal_parquet <- function(big.dat, parquet.dir, denom=10^6,mc.cores=
   }
 
 
-get_cl_stats_parquet <- function(big.dat.parquet, cl, mc.cores=20,stats=c("means","present","sqr_means"), return.matrix=TRUE)
+get_cl_stats_fbm <- function(big.dat, cl, max.cells=100000, stats=c("means"),genes.allowed=NULL)
+  {
+    if(!is.factor(cl)){
+      cl = as.factor(cl)
+    }
+    cl.size = table(cl)
+    cl.bins=round(cumsum(cl.size) / max.cells)
+    cl.bins=split(names(cl.size), cl.bins)
+    tmp.results=sapply(cl.bins, function(select.cl){
+      tmp.cl= droplevels(cl[cl %in% select.cl])      
+      dat = get_logNormal(big.dat, names(tmp.cl))
+      if(!is.null(genes.allowed)){
+        select = row.names(dat) %in% genes.allowed
+        dat = dat[select,,drop=FALSE]
+      }
+      result = sapply(stats, function(x){
+          get_cl_stats(dat, cl=tmp.cl,stats=x)
+      }, simplify=F)
+    },simplify=F)
+    cl.results = sapply(stats, function(x){
+      do.call("cbind",sapply(tmp.results, function(result) result[[x]], simplify=F))
+    },simplify=F)
+    return(cl.results)    
+  }
+
+get_cl_stats_parquet <- function(big.dat.parquet, cl, mc.cores=20,stats=c("means","present","sqr_means"), genes.allowed=NULL, return.matrix=TRUE)
   {
     library(data.table)
     library(arrow)
@@ -718,17 +743,23 @@ get_cl_stats_parquet <- function(big.dat.parquet, cl, mc.cores=20,stats=c("means
     if("sqr_means" %in% stats){
       cl.stats <- cl.stats %>% mutate(sqr_means = sqr_sum/size)
     }
-    
     if(return.matrix){
       ngenes = nrow(row.df)
       coor =  (as.integer(cl.stats$cl) - 1)* ngenes  + cl.stats$i + 1
       mat.list= list()
+      if(!is.null(genes.allowed)){
+        select = big.dat.parquet$row_id %in% genes.allowed
+      }
+
       for(x in stats){
         mat = matrix(0, nrow=ngenes,ncol=ncl)
         row.names(mat) = big.dat.parquet$row_id
         colnames(mat) = cl.l
         mat[coor] = cl.stats[[x]]
         mat = as.matrix(mat, ncol=ncl)
+        if(!is.null(genes.allowed)){
+          mat = mat[select,,drop=FALSE]
+        }
         mat.list[[x]] = mat
       }
       return(mat.list)
