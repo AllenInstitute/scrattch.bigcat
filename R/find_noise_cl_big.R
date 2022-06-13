@@ -110,7 +110,7 @@ check_triplet_big<- function(de.df, triplet,top.n=50)
   }
 
 
-find_doublets_all_big <- function(de.dir, summary.dir = NULL, triplets=NULL, all.pairs, mc.cores=40,score.th=0.8, olap.th=1.6,out.dir="doublets_result",overwrite=TRUE,...)
+find_doublets_all_big <- function(de.dir, summary.dir = NULL, triplets=NULL, all.pairs, mc.cores=30,score.th=0.8, olap.th=1.6,out.dir="doublets_result",overwrite=TRUE,...)
   {
     require(parallel)
     require(doMC)
@@ -128,7 +128,7 @@ find_doublets_all_big <- function(de.dir, summary.dir = NULL, triplets=NULL, all
     candidates = tmp %>% arrange(-size) %>% pull(cl.up)
     registerDoMC(cores=min(mc.cores,length(candidates)))
     mcoptions <- list(preschedule = FALSE)
-    result.df=foreach::foreach(x=candidates,.combine="rbindlist",.options.multicore = mcoptions)%dopar% {
+    result.df=foreach::foreach(x=candidates,.options.multicore = mcoptions)%dopar% {
       fn = file.path(out.dir, paste0(x, ".data.parquet"))
       if(!overwrite & file.exists(fn)){
         result.df = read_parquet(fn)
@@ -154,8 +154,10 @@ find_doublets_all_big <- function(de.dir, summary.dir = NULL, triplets=NULL, all
         sapply(result.list, function(x)x[[f]])
       },simplify=FALSE))
       write_parquet(result.df, sink=fn)
-      return(list(result.df))
+      return(NULL)
     }
+    ds = open_dataset(out.dir)
+    return(ds)
   }
 
 
