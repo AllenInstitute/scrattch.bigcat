@@ -429,7 +429,7 @@ compute_knn <- function(comb.dat, select.genes, ref.list, ref.dat.list=NULL, sel
             knn.result=get_knn_batch(dat=dat, ref.dat = tmp.ref.dat, k=k.tmp, method = method, batch.size = block.size, mc.cores=mc.cores, index=map.index, transposed=TRUE)
           }
           else{
-            knn.result=get_knn_batch_big(big.dat=dat.list[[set]], ref.dat = tmp.ref.dat,select.cells=map.cells, k=k.tmp, method = cross.knn.method, block.size = block.size, mc.cores=mc.cores, index=map.index, transposed=TRUE)
+            knn.result=get_knn_batch_big(big.dat=dat.list[[set]], ref.dat = tmp.ref.dat,select.cells=map.cells, k=k.tmp, method = cross.knn.method, block.size = block.size, mc.cores=mc.cores, index=map.index)
           }
         }
         if(is.null(index)){
