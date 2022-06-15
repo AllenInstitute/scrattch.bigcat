@@ -126,11 +126,11 @@ get_logNormal <- function(big.dat, cols, rows=NULL, ...)
     else{
       mat = get_cols(big.dat, cols, ...)    
       norm.dat=logCPM(mat)
-      if(!is.null(rows)){
-        norm.dat = norm.dat[rows,,drop=F]
-      }
     }
-    return(mat)
+    if(!is.null(rows)){
+      norm.dat = norm.dat[rows,,drop=F]
+    }
+    return(norm.dat)
   }
 
 
@@ -837,7 +837,7 @@ build_train_index <- function(cl.dat, method= c("Annoy.Cosine","cor","Annoy.Eucl
     return(index)    
   }
 
-get_knn_batch_big <- function(big.dat, ref.dat, select.cells,block.size=10000, mc.cores,k, method="cor", dim=NULL, return.distance=FALSE, index=NULL, clear.index=FALSE, ntrees=50,transposed=TRUE)     
+get_knn_batch_big <- function(big.dat, ref.dat, select.cells,block.size=10000, mc.cores,k, method="cor", dim=NULL, return.distance=FALSE, index=NULL, clear.index=FALSE, ntrees=50)
   {
     
     if(return.distance){
@@ -846,13 +846,8 @@ get_knn_batch_big <- function(big.dat, ref.dat, select.cells,block.size=10000, m
     else{
       fun = "rbind"
     }
-    if(is.null(index) & method %in% c("Annoy.Euclidean", "Annoy.Cosine", "cor")) {
-      if(transposed){
-        map.ref.dat = Matrix::t(ref.dat)
-      }
-      else{
-        map.ref.dat = ref.dat
-      }
+    if(is.null(index) & method %in% c("Annoy.Euclidean", "Annoy.Cosine", "cor")) {     
+      map.ref.dat = Matrix::t(ref.dat)
       if (method == "cor") {
         map.ref.dat = map.ref.dat - rowMeans(map.ref.dat)
         map.ref.dat = l2norm(map.ref.dat, by = "row")
@@ -863,11 +858,11 @@ get_knn_batch_big <- function(big.dat, ref.dat, select.cells,block.size=10000, m
       index = buildAnnoy(map.ref.dat, ntrees = ntrees)
       rm(map.ref.dat)
       gc()
-    }    
+    }   
     result = big_dat_apply(big.dat, cols=select.cells, .combine=fun, mc.cores=mc.cores, block.size=block.size, FUN = function(big.dat, bin,...){
       {
         dat = get_logNormal(big.dat, bin, rows=row.names(ref.dat))
-        knn=get_knn(dat=dat, ref.dat=ref.dat, k=k, method=method, dim=dim,return.distance=return.distance,index=index,...)
+        knn=get_knn(dat=dat, ref.dat=ref.dat, k=k, method=method, dim=dim,return.distance=return.distance,index=index,transposed=TRUE,...)
         rm(dat)
         gc()
         knn
@@ -877,18 +872,18 @@ get_knn_batch_big <- function(big.dat, ref.dat, select.cells,block.size=10000, m
       cleanAnnoyIndex(index)
     }
     else{
-      if(!is.list(result)){
-        result = list(result)
+      if (!return.distance) {
+        result = list(knn.index = result)
       }
-      result$ref.index=index
+      result$index = index
     }
     return(result)
   }
 
-map_cells_knn_big <- function(big.dat, cl.dat, select.cells, train.index=NULL, method = c("Annoy.Cosine","cor"), block.size=10000, mc.cores=10)
+map_cells_knn_big <- function(big.dat, cl.dat, select.cells, train.index=NULL, method = c("Annoy.Cosine","cor"), block.size=10000, mc.cores=10,clear.index=is.null(train.index))
   {
     library(bigstatsr)
-    cl.knn =  get_knn_batch_big(big.dat, cl.dat, select.cells=select.cells, k=1, index=train.index, method=method, transposed=TRUE, block.size=block.size, mc.cores=mc.cores,return.distance=TRUE)
+    cl.knn =  get_knn_batch_big(big.dat, cl.dat, select.cells=select.cells, k=1, index=train.index, method=method, block.size=block.size, mc.cores=mc.cores,return.distance=TRUE)
     knn.index = cl.knn[[1]]
     knn.dist = cl.knn[[2]]
     map.df = data.frame(sample_id=row.names(knn.index), cl = colnames(cl.dat)[knn.index], dist = knn.dist)

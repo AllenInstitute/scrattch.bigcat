@@ -245,7 +245,7 @@ select_pos_markers_ds<- function(ds,  cl, select.cl, genes, de=NULL, n.markers=1
       }
       if(is.null(de)){
         if(is.null(all.pairs)){
-          ds = ds %>% filter(pair %in% select.pairs$pair_bin)
+          ds = ds %>% filter(pair_bin%in% select.pairs$pair_bin)
         }
         select.de = ds %>% filter(pair %in% select.pairs$pair) %>% collect()
       }
