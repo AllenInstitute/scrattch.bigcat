@@ -74,6 +74,7 @@ onestep_clust_big<- function(big.dat,
                              select.cells= big.dat$col_id,
                              genes.allowed = big.dat$row_id,
                              counts = NULL,
+                             knn.method="Annoy.Euclidean",
                              method = c("louvain","leiden","ward.D", "kmeans"),
                              vg.padj.th = 0.5,                             
                              dim.method = c("pca","WGCNA"), 
@@ -148,10 +149,7 @@ onestep_clust_big<- function(big.dat,
         jaccard.sampled = sample(jaccard.sampled, jaccard.sampleSize)
       }
       ref.rd.dat = rd.dat[jaccard.sampled,]
-      library(BiocNeighbors)
-      index = buildAnnoy(ref.rd.dat, distance ="Euclidean", transposed = FALSE, ntrees=100)
-      
-      knn.result=get_knn_batch(dat=rd.dat, ref.dat = ref.rd.dat, k=k, method = "Annoy.Euclidean", mc.cores=mc.cores, batch.size = 10000,transposed=FALSE,index=index, return.distance=TRUE)
+      knn.result=get_knn_batch(dat=rd.dat, ref.dat = ref.rd.dat, k=k, method = knn.method, mc.cores=mc.cores, batch.size = 10000,transposed=FALSE,return.distance=TRUE, clear.index=TRUE)
       knn.index=knn.result[[1]]
       knn.dist=knn.result[[2]]
       if(verbose){

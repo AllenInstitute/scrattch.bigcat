@@ -96,7 +96,7 @@ impute_knn <- function(knn.idx, reference, dat, knn.dist=NULL, w=NULL, transpose
       colnames(impute.dat) =  row.names(knn.idx)
     }
     ImputeKnn(knn.idx, reference.id, cell.id, gene.id,
-              dat=dat,impute.dat, w_mat_=NULL,
+              dat=dat,impute.dat, w_mat_=w,
               transpose_input=transpose_input, transpose_output=transpose_output)    
     impute.dat
   }
