@@ -545,7 +545,10 @@ plot_RD_cl_subset<- function(rd.dat, cl, cl.color,cl.label,select.samples,missin
     alpha.val["0"] = bg.alpha    
     cl.color = alpha(cl.color, alpha.val)
     cl.cex = setNames(rep(fg.size, length(cl.label)),names(cl.label))
-    cl.cex["0"]=bg.size    
+    cl.cex["0"]=bg.size
+    cl.label = cl.label[names(cl.size)]
+    cl.color = cl.color[names(cl.size)]
+    cl.cex=cl.cex[names(cl.size)]
     rd.rd = rd.dat[order(row.names(rd.dat) %in% select.samples),]
     plot_RD_cl(rd.dat, cl, cl.color, cl.label,cex=cl.cex, ...)    
   }
