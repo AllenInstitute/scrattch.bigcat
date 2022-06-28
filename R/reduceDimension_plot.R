@@ -48,8 +48,15 @@ get_RD_cl_center <- function(rd.dat, cl)
 #' @export
 #'
 #' @examples
-plot_RD_cl <- function(rd.dat, cl, cl.color, cl.label,cex=0.15, fn.size =2, alpha.val=NULL,show.legend=FALSE, legend.size=2, label.center=TRUE, bg="blank",fn.color="black",no.shape=TRUE,ncol=4,shift.x=0, shift.y=0)
+plot_RD_cl <- function(rd.dat, cl, cl.color=NULL, cl.label=NULL,cex=0.15, fn.size =2, alpha.val=NULL,show.legend=FALSE, legend.size=2, label.center=TRUE, bg="blank",fn.color="black",no.shape=TRUE,ncol=4,shift.x=0, shift.y=0)
   {
+    x=unique(cl)
+    if(is.null(cl.label)){
+      cl.label = setNames(x,x)
+    }
+    if(is.null(cl.color)){
+      cl.color  = setNames(varibow(length(x)),x)
+    }
     rd.dat=as.data.frame(rd.dat)
     colnames(rd.dat) = paste0("Dim", 1:ncol(rd.dat))
     rd.dat$cl = factor(cl[row.names(rd.dat)])

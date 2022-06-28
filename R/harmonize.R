@@ -337,6 +337,7 @@ select_joint_genes <-  function(comb.dat, ref.dat.list, select.cells = comb.dat$
 
 build_annoy_index <- function(ref.dat, knn.method, transposed=TRUE,ntrees=50)
   {
+    library(BiocNeighbors)
     if(transposed){
       knn.ref.dat = t(ref.dat)
     }

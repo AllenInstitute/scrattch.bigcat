@@ -34,6 +34,7 @@ Imports:
   data.table,
   dplyr,
   arrow,
+  igraph,
   ggplot2,
   grid,
   dendextend,

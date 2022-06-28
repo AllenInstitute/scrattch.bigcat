@@ -211,7 +211,7 @@ get_cols_parquet_dense <- function(big.dat, cols, rows, mc.cores=5)
       row.df = read_parquet(file.path(big.dat$parquet.dir, "row.parquet"))
     }
     row.df = row.df %>% filter(row_names %in% rows)
-    if(is.null(big.dat$col.idf)){
+    if(is.null(big.dat$col.df)){
       col.df = read_parquet(file.path(big.dat$parquet.dir, "col.parquet"))
     }
     col.df = col.df %>% filter(col_names %in% cols)    
@@ -530,7 +530,7 @@ get_cols_parquet <- function(big.dat.parquet, cols, rows=NULL,keep.col=FALSE, sp
       }
       else{
         row.df = row.df %>% filter(row_id %in% rows)
-        rows = data.table(row_id=rows) %>% left_join(row.df[,c("row_id","row_name"),by="row_id"]) %>% pull(row_name)
+        rows = data.table(row_id=rows) %>% left_join(row.df[,c("row_id","row_name")],by="row_id")%>% pull(row_name)
       }
     }
     else{
@@ -589,6 +589,7 @@ big.dat_logNormal_parquet <- function(big.dat, parquet.dir, denom=10^6,mc.cores=
     library(parallel)    
     require(doMC)
     require(foreach)
+    bins = big.dat$col.df %>% pull(col_bin) %>% unique
     registerDoMC(cores=min(mc.cores, length(bins)))
     tmp <- foreach(bin= bins, .combine="c") %dopar% {      
       map.df = ds %>% filter(col_bin ==bin) %>% collect()
@@ -603,6 +604,7 @@ big.dat_logNormal_parquet <- function(big.dat, parquet.dir, denom=10^6,mc.cores=
     }
     big.dat.new$parquet.dir = parquet.dir
     big.dat.new$ds = NULL
+    big.dat.new$logNormal=TRUE
     return(big.dat.new)
   }
 
@@ -839,7 +841,7 @@ build_train_index <- function(cl.dat, method= c("Annoy.Cosine","cor","Annoy.Eucl
 
 get_knn_batch_big <- function(big.dat, ref.dat, select.cells,block.size=10000, mc.cores,k, method="cor", dim=NULL, return.distance=FALSE, index=NULL, clear.index=FALSE, ntrees=50)
   {
-    
+    library(BiocNeighbors)    
     if(return.distance){
       fun = "knn_combine"
     }
@@ -890,4 +892,32 @@ map_cells_knn_big <- function(big.dat, cl.dat, select.cells, train.index=NULL, m
     return(map.df)
   }
 
+
+big.dat.parquet.to.h5 <- function(big.dat, h5.file, type="float",mc.cores=10)
+  {
+    library(rhdf5)
+    library(dplyr)
+    library(arrow)
+    require(doMC)
+    require(foreach)
+    registerDoMC(cores=mc.cores)
     
+    h5createFile(h5.file)
+    big.dat = init_big.dat_parquet(big.dat)
+    col.df= big.dat$col.df
+    row.df = big.dat$row.df
+    c.bin.size = col.df %>% pull(col_bin) %>% table %>% max
+    r.bin.size = row.df %>% pull(row_bin) %>% table %>% max
+    group="X"
+    h5createDataset(h5.file,"X",c(nrow(row.df), nrow(col.df)),storage.mode=type,chunk=c(r.bin.size, c.bin.size))
+    
+    for(c.id in unique(big.dat$col.df$col_bin)) {
+      cols = col.df %>% filter(col_bin==c.id) %>% pull(col_id)
+      foreach(r.id = unique(big.dat$row.df$row_bin)) %dopar% {        
+        rows = row.df %>% filter(row_bin==r.id) %>% pull(row_id)
+        mat = as.matrix(get_cols(big.dat, cols=cols, rows=rows))
+        h5write(mat, file=h5.file, name="X",index=list(rows, cols))
+        cat("Finish", c.id, r.id, "\n")
+      }
+    }    
+  }
