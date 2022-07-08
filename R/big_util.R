@@ -884,7 +884,6 @@ get_knn_batch_big <- function(big.dat, ref.dat, select.cells,block.size=10000, m
 
 map_cells_knn_big <- function(big.dat, cl.dat, select.cells, train.index=NULL, method = c("Annoy.Cosine","cor"), block.size=10000, mc.cores=10,clear.index=is.null(train.index))
   {
-    library(bigstatsr)
     cl.knn =  get_knn_batch_big(big.dat, cl.dat, select.cells=select.cells, k=1, index=train.index, method=method, block.size=block.size, mc.cores=mc.cores,return.distance=TRUE)
     knn.index = cl.knn[[1]]
     knn.dist = cl.knn[[2]]
@@ -920,4 +919,15 @@ big.dat.parquet.to.h5 <- function(big.dat, h5.file, type="float",mc.cores=10)
         cat("Finish", c.id, r.id, "\n")
       }
     }    
+  }
+
+display_cl_big <- function(big.dat, cl, ds, max.cl.size=200,markers=NULL,...)
+  {
+    tmp.cells= sample_cells(cl, max.cl.size)
+    norm.dat = get_logNormal(big.dat, tmp.cells)
+    tmp.pairs = create_pairs(unique(cl))
+    if(is.null(markers)){
+      markers = select_markers_ds(ds, pairs= row.names(tmp.pairs))
+    }
+    display_cl(cl=cl[tmp.cells], norm.dat, markers=markers,...)
   }

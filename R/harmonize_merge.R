@@ -294,7 +294,7 @@ get_cl_stats_list <- function(comb.dat, merge.sets, cl, max.cl.size=300,mc.cores
 ##' @param compare.k 
 ##' @return 
 ##' @author Zizhen Yao
-merge_cl_multiple <- function(comb.dat, merge.sets, cl, anchor.genes, verbose=TRUE, lfc.conservation.th=0.7, merge.type="undirectional", de.method="fast_limma",max.cl.size=300, compare.k=4, mc.cores=5, pairBatch=40)
+merge_cl_multiple <- function(comb.dat, merge.sets, cl, anchor.genes, verbose=TRUE, lfc.conservation.th=0.7, merge.type="undirectional", de.method="fast_limma",max.cl.size=300, compare.k=4, mc.cores=5, pairBatch=100, cl.stats.list=NULL)
 {
   #print("merge_cl_multiple")
   cl = setNames(as.character(cl),names(cl))
@@ -389,6 +389,13 @@ merge_cl_multiple <- function(comb.dat, merge.sets, cl, anchor.genes, verbose=TR
   ###Merge small cells based on KNN prediction
   cl.small.cells= names(cl)[cl %in% cl.small]
   cl.big.cells= names(cl)[cl %in% cl.big]
+  if(is.null(cl.stats.list)){
+    cl.stats.list = get_cl_stats_list(comb.dat, merge.sets, cl,mc.cores=mc.cores)
+  }
+  cl.means.list      = cl.stats.list$cl.means.list
+  cl.present.list    = cl.stats.list$cl.present.list
+  cl.sqr.means.list  = cl.stats.list$cl.sqr.means.list
+  
   if(length(cl.small)>0){
     cl.small.cells.byplatform = split(cl.small.cells, as.character(comb.dat$meta.df[cl.small.cells, "platform"]))
     cl.big.cells.byplatform = split(cl.big.cells, comb.dat$meta.df[cl.big.cells, "platform"])
@@ -396,36 +403,63 @@ merge_cl_multiple <- function(comb.dat, merge.sets, cl, anchor.genes, verbose=TR
     new.cl = c()
     for(set in names(cl.small.cells.byplatform)){
       query.cells =cl.small.cells.byplatform[[set]]
-      if(length(query.cells)==0){next}
-      ref.cells = cl.big.cells.byplatform[[set]]
-      ref.cells = sample_cells(cl[ref.cells],max.cl.size)
-      if(is.null(ref.cells)){
+      if(length(query.cells)==0){
+        next
+      }
+      cl.dat = cl.means.list[[set]]
+      cl.dat = cl.dat[,colnames(cl.dat)%in% cl.big]
+      if(is.null(cl.dat)|ncol(cl.dat)==0){
         unresolved.cells = c(unresolved.cells, query.cells)
         next
       }
-      if(comb.dat$type=="mem"){
-        dat = comb.dat$dat.list[[set]]
+      cl.dat = cl.dat[intersect(anchor.genes,row.names(cl.dat)),]
+      if(comb.dat$dat.list[[set]]$type=="mem"){
+        dat = comb.dat$dat.list[[set]][row.names(cl.dat),query.cells]
+        map.df = map_cells_knn(dat, cl.dat, mc.cores=mc.cores)
       }
       else{
-        dat = get_cols(comb.dat$dat.list[[set]], c(ref.cells, query.cells))
+        if(length(query.cells)<10000){
+          dat = get_logNormal(comb.dat$dat.list[[set]], cols=query.cells, rows=row.names(cl.dat))
+          map.df = map_cells_knn(dat, cl.dat, mc.cores=mc.cores)
+        }
+        else{
+          map.df = map_cells_knn_big(comb.dat$dat.list[[set]], cl.dat, select.cells = query.cells, mc.cores=mc.cores)
+        }
       }
-      tmp.genes=intersect(anchor.genes, row.names(dat))
-      knn.idx = get_knn(dat[tmp.genes,query.cells,drop=F], dat[tmp.genes,ref.cells,drop=F], method="Annoy.Euclidean", k=min(15, ceiling(length(ref.cells)/2)))
-      pred.result = predict_knn(knn.idx=knn.idx, reference = ref.cells, cl=cl)
-      tmp.cl = with(pred.result$pred.df, setNames(pred.cl, row.names(pred.result$pred.df)))
-      new.cl = c(new.cl, tmp.cl)
+      map.cl = setNames(map.df$cl, map.df$sample_id)      
+      new.cl = c(new.cl, map.cl)
     }
     if(length(unresolved.cells)>0){
       tb = table(cl[names(new.cl)], new.cl)
       map.cl = setNames(colnames(tb)[apply(tb, 1, which.max)], row.names(tb))
       new.cl[unresolved.cells] = map.cl[as.character(cl[unresolved.cells])]
     }
-    cl[names(new.cl)]=new.cl
+    new.cl.stats.list   = get_cl_stats_list(comb.dat, merge.sets, new.cl)
+    new.cl.means.list   = new.cl.stats.list$cl.means.list
+    new.cl.present.list = new.cl.stats.list$cl.present.list
+    new.cl.sqr.means.list = new.cl.stats.list$cl.sqr.means.list
+    new.cl.platform.counts = table(comb.dat$meta.df[names(new.cl), "platform"],new.cl)[merge.sets,,drop=F]    
+    ###update cl.stats
+    for(set in names(new.cl.means.list)){
+      tmp.cl.size = cbind(new.cl.platform.counts[set,], cl.platform.counts[set,colnames(new.cl.platform.counts)])
+      for(p in row.names(tmp.cl.size)){
+        if(new.cl.platform.counts[set,p] > 0){
+          tmp.dat= cbind(new.cl.means.list[[set]][,p],cl.means.list[[set]][,p])
+          cl.means.list[[set]][[p]] = get_weighted_means(tmp.dat, tmp.cl.size[p,])
+          tmp.dat= cbind(new.cl.sqr.means.list[[set]][,p], cl.sqr.means.list[[set]][,p])
+          cl.sqr.means.list[[set]][[p]] = get_weighted_means(tmp.dat, tmp.cl.size[p,])
+          tmp.dat= cbind(new.cl.present.list[[set]][,p],cl.present.list[[set]][,p])
+          cl.present.list[[set]][[p]] = get_weighted_means(tmp.dat, tmp.cl.size[p,])
+        }
+      }
+    }
+    cl[names(new.cl)]=new.cl    
   }
-  cl.stats.list = get_cl_stats_list(comb.dat, merge.sets, cl)
-  cl.means.list      = cl.stats.list$cl.means.list
-  cl.present.list    = cl.stats.list$cl.present.list
-  cl.sqr.means.list  = cl.stats.list$cl.sqr.means.list
+  #cl.stats.list = get_cl_stats_list(comb.dat, merge.sets, cl)
+  #cl.means.list      = cl.stats.list$cl.means.list
+  #cl.present.list    = cl.stats.list$cl.present.list
+  #cl.sqr.means.list  = cl.stats.list$cl.sqr.means.list
+
   cl.rd.list = sapply(cl.means.list, function(x){
     x[row.names(x) %in% anchor.genes,,drop=F]
   },simplify=FALSE)

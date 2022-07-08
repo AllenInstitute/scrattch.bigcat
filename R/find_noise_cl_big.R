@@ -137,8 +137,8 @@ find_doublets_all_big <- function(de.dir, summary.dir = NULL, triplets=NULL, all
       tmp = triplets %>% filter(cl.up==x) %>% collect()
       cat(x, "triplets:", nrow(tmp),"\n")
       result.list= list()
-      for(x in 1:nrow(tmp)){
-        triplet = tmp[x,]
+      for(i in 1:nrow(tmp)){
+        triplet = tmp[i,]
         pairs =  c(triplet$pair, triplet$pair1, triplet$pair2)
         tmp.pair.bin=all.pairs %>% filter(pair %in% pairs) %>% pull(pair_bin) %>% unique
         de.df = ds %>% filter(pair_bin %in% tmp.pair.bin & pair %in% pairs) %>% collect()
@@ -170,4 +170,29 @@ find_low_quality_big <- function(ds, low.th=2,pairs)
     df = df %>% mutate(cl=ifelse(up.num < low.th,P2, P1))
     df = df %>% mutate(cl.low=ifelse(up.num < low.th,P1, P2))
     return(df)
+  }
+
+
+plot_doublet_big <- function(big.dat, ds, cl, doublet.df, ...)
+  {
+    for(i in 1:nrow(doublet.df)){                                  
+      x = as.character(doublet.df[i, "cl"])
+      y = as.character(doublet.df[i, "cl1"])
+      z = as.character(doublet.df[i, "cl2"])
+      tmp.cl = cl[cl %in% c(x, y, z)]
+      tmp.cl = setNames(factor(as.character(tmp.cl), c(x,y,z)), names(tmp.cl))
+      tmp.cells= sample_cells(tmp.cl, 300)
+      norm.dat = get_logNormal(big.dat, tmp.cells)
+      tmp.pairs = create_pairs(unique(tmp.cl))
+      markers = select_markers_ds(ds, pairs= row.names(tmp.pairs))
+      tmp=display_cl(cl=tmp.cl[tmp.cells], norm.dat, prefix=paste0("doublet.",paste(levels(tmp.cl), collapse="_")), max.cl.size=100, markers=markers,...)
+    }
+  }
+
+
+check_cl_low_quality_big <- function(ds, x, cl.doublets)
+  {
+    tmp.summ=ds %>% filter(P1==x & !P2 %in% cl.doublets |P2==x & !P1 %in% cl.doublets)    
+    tmp.summ = tmp.summ %>% mutate(tmp.num=ifelse(P1==x,up.num, down.num),cl=ifelse(P1==x,P2, P1), cl.low=x)
+    tmp.summ = tmp.summ %>% arrange(tmp.num)
   }
