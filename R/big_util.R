@@ -4,6 +4,7 @@ create_big.dat_fbm <- function(row.id, col.id, logNormal=TRUE, backingfile=file.
     m = FBM(nrow=length(row.id),ncol=length(col.id),backingfile=backingfile, type="float", ...)
     big.dat = list(fbm=m, row_id = row.id, col_id = col.id)
     big.dat$logNormal = logNormal
+    big.dat$type="fbm"
     return(big.dat)
   }
 
@@ -80,7 +81,7 @@ get_cols <-  function(big.dat, cols, rows=big.dat$row_id, ...)
     else if(big.dat$type=="parquet"){
       mat = get_cols_parquet(big.dat, cols, rows=rows,...)
     }
-    else if(big.dat$type=="parquet_dens"){
+    else if(big.dat$type=="parquet.dense"){
       mat = get_cols_parquet_dense(big.dat, cols, rows=rows,...)
     }
     return(mat)
@@ -116,8 +117,17 @@ get_cols_fbm<- function(big.dat, cols, rows=big.dat$row_id, keep.col=TRUE, spars
     return(mat)
   }
 
+set_cols_fbm<- function(big.dat, mat)
+  {
+    library(Matrix)    
+    cols = match(colnames(mat), big.dat$col_id)
+    rows = match(row.names(mat), big.dat$row_id)
+    big.dat$fbm[rows,cols]=mat
+    return(NULL)
+  }
 
-get_logNormal <- function(big.dat, cols, rows=NULL, ...)
+
+get_logNormal <- function(big.dat, cols, rows=big.dat$row_id, ...)
   {
     if(big.dat$logNormal){
       mat = get_cols(big.dat, cols, rows, ...)    
@@ -160,41 +170,52 @@ init_mat_parqeut_dense <- function(dir, col.id, row.id, val=0, col.bin.size=5000
 
     write_parquet(row.df, sink=file.path(dir,"row.parquet"))
     write_parquet(col.df, sink=file.path(dir,"col.parquet"))
-    
-    mat = matrix(val, nrow=row.bin.size, ncol=col.bin.size)
-    mat.df = as.data.frame(mat)        
-    for(a in unique(col.df$col_bin)){
-      d = file.path(dir,a)
+    x = rep(val, row.bin.size*col.bin.size)
+    fn = file.path(dir, "x.parquet")
+    write_parquet(as.data.table(x), sink=fn)
+    foreach(a = unique(col.df$col_bin)) %dopar%{
+      d= file.path(dir,a)
       dir.create(d)
       for(b in unique(row.df$row_bin)){
-        dir.create(file.path(dir,a,b))
-        write_parquet(mat.df, file.path(d, "data.parquet"))        
+        d2= file.path(d,b)
+        print(d2)
+        dir.create(d2)
+        file.copy(fn, file.path(d2, "x.parquet"))
       }
     }
-    big.dat = list(type="parquet.dense", parquet.dir=dir,row_id = row.id, col_id = col.id,row.df=row.df, col.df = col.df)
+    file.remove(fn)
+    big.dat = list(type="parquet.dense", parquet.dir=dir,row_id = row.id, col_id = col.id,row.df=row.df, col.df = col.df, row.bin.size=row.bin.size, col.bin.size = col.bin.size)
     return(big.dat)
   }        
 
-update_mat_parqeut_dense <- function(big.dat, mat, mc.cores=10)
+update_mat_parquet_dense <- function(big.dat, mat, mc.cores=10)
   {
     library(parallel)    
     require(doMC)
     require(foreach)
-    registerDoMC(cores=mc.cores)
     library(arrow)
     library(dplyr)
-    row.df = read_parquet(file.path(big.dat$parquet.dir, "row.parquet")) %>% filter(row_names %in% row.names(mat))
-    col.df = read_parquet(file.path(big.dat$parquet.dir, "col.parquet")) %>% filter(col_names %in% col.names(mat))
+    row.df = read_parquet(file.path(big.dat$parquet.dir, "row.parquet"))
+    row.df = row.df %>% filter(row_name %in% row.names(mat))
+    col.df = read_parquet(file.path(big.dat$parquet.dir, "col.parquet"))
+    col.df = col.df %>% filter(col_name %in% colnames(mat))
+    mc.cores = min(mc.cores, length(unique(col.df$col_bin))*length(unique(row.df$row_bin)))
+    registerDoMC(cores=mc.cores)
     foreach(a=unique(col.df$col_bin)) %:%
       foreach(b=unique(row.df$row_bin)) %dopar% {
-        fn = file.path(big.dat$parquet.dir, a,b, "data.parquet")
-        org.mat =  read_parquet(fn)
+        fn = file.path(big.dat$parquet.dir, a,b, "x.parquet")
+        print(fn)
+        org.mat =  read_parquet(fn)[["x"]]
+        org.mat = matrix(org.mat, big.dat$row.bin.size, big.dat$col.bin.size)        
         tmp.col.df = col.df %>% filter(col_bin==a)
         tmp.row.df = row.df %>% filter(row_bin==b)        
-        tmp.mat = mat[tmp.row.df$row_names, tmp.col.df$col_names]              
-        org.mat[tmp.row.df$row_id, tmp.col.df$col_id] = tmp.mat
-        write_parquet(org.mat, fn)
-      }    
+        tmp.mat = mat[tmp.row.df$row_name, tmp.col.df$col_name]              
+        org.mat[tmp.row.df$row_bin_id, tmp.col.df$col_bin_id] = tmp.mat
+        df = data.table(x=as.vector(org.mat))
+        write_parquet(df, fn)
+        return(NULL)
+      }
+    return(NULL)
   }
 
 
@@ -210,25 +231,31 @@ get_cols_parquet_dense <- function(big.dat, cols, rows, mc.cores=5)
     if(is.null(big.dat$row.df)){
       row.df = read_parquet(file.path(big.dat$parquet.dir, "row.parquet"))
     }
-    row.df = row.df %>% filter(row_names %in% rows)
+    else{
+      row.df=big.dat$row.df
+    }
+    row.df = row.df %>% filter(row_name %in% rows)
     if(is.null(big.dat$col.df)){
       col.df = read_parquet(file.path(big.dat$parquet.dir, "col.parquet"))
     }
-    col.df = col.df %>% filter(col_names %in% cols)    
-    mat=foreach(a=unique(col.df$col_bin), .combine="cbindlist") %dopar% {
-      tmp.col.df = col.df %>% filter(col_bin==a)      
-      mat = rbindlist(sapply(unique(row.df$row_bin),function(b){
-        tmp.row.df = row.df %>% filter(row_bin==b)
-        fn = file.path(big.dat$parquet.dir, a,b, "data.parquet")
-        mat =  read_parquet(fn)
-        mat=mat[tmp.row.df$row_id, tmp.col.df$col_id]
-        row.names(mat) = tmp.row.df$row_names
-        colnames(mat) = tmp.coldf$col_names
-        list(mat)
-      },simplify=FALSE))
-      list(mat)
+    else{
+      col.df = big.dat$col.df
     }
-    mat = as.matrix(mat)
+    col.df = col.df %>% filter(col_name %in% cols)    
+    mat=foreach(a=unique(col.df$col_bin), .combine="cbind") %dopar% {
+      tmp.col.df = col.df %>% filter(col_bin==a)
+      result = matrix(0, nrow=nrow(row.df), ncol=nrow(tmp.col.df),dimnames=list(row.df$row_name, tmp.col.df$col_name))
+      for(b in unique(row.df$row_bin)){
+        tmp.row.df = row.df %>% filter(row_bin==b)
+        fn = file.path(big.dat$parquet.dir, a,b, "x.parquet")
+        print(fn)
+        mat = read_parquet(fn)$x
+        mat = matrix(mat, nrow=big.dat$row.bin.size, ncol=big.dat$col.bin.size)
+        result[tmp.row.df$row_name, tmp.col.df$col_name]=mat[tmp.row.df$row_bin_id, tmp.col.df$col_bin_id]
+      }
+      result
+    }
+    mat = mat[rows, cols]
     return(mat)    
   }
 

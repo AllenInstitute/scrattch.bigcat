@@ -295,7 +295,7 @@ onestep_clust <- function(norm.dat,
   if(is.null(max.cl)){
     max.cl = pmin(ncol(rd.dat)*2 + 1, round(length(select.cells)/de.param$min.cells))
   }
-  if(method=="louvain"){
+  if(method=="louvain"){        
     k = pmin(k.nn, round(nrow(rd.dat)/2))
     tmp = jaccard_louvain(rd.dat, k)
     if(is.null(tmp)){

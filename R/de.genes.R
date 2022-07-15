@@ -1503,6 +1503,7 @@ export_de_genes_new <- function(de.genes, cl.means, out.dir="de_parquet", pairs=
         library(dplyr)
         library(arrow)     
         library(data.table)
+        
         tmp.pairs = pairs %>% filter(bin.x==x & bin.y==y| bin.x==y & bin.y==x) %>% pull(pair)
         if(is.null(tmp.pairs)|length(tmp.pairs)==0){
           return(NULL)

@@ -226,21 +226,25 @@ de_genes_multiple <- function(comb.dat, cl, merge.sets=names(comb.dat$dat.list),
 get_cl_stats_list <- function(comb.dat, merge.sets, cl, max.cl.size=300,mc.cores=10)
   {
     cl.stats.list = list()
+    meta.df=comb.dat$meta.df
     for(set in merge.sets){
       dat = comb.dat$dat.list[[set]]
+      de.param = comb.dat$de.param.list[[set]]
+      tmp.cl = cl[names(cl) %in% row.names(meta.df)[meta.df$platform==set]]
+      tmp.size = table(tmp.cl)
+      tmp.cl= tmp.cl[tmp.cl %in% names(tmp.size)[tmp.size > de.param$min.cells]]
+      if(is.factor(tmp.cl)){
+        tmp.cl=droplevels(tmp.cl)
+      }
+      tmp.cells = sample_cells(tmp.cl, max.cl.size)
+      tmp.cl = tmp.cl[tmp.cells]
+      
       if(comb.dat$type=="mem"){
-        tmp.cl = cl[names(cl) %in% colnames(dat)]
         tmp=sapply(c("means","present","sqr_means"), function(x){
           get_cl_stats(dat, cl=tmp.cl, max.cl.size = max.cl.size, stats=x)
         },simplify=F)
       }
-      else{
-        tmp.cl = cl[names(cl) %in% dat$col_id]
-        if(is.factor(tmp.cl)){
-          tmp.cl=droplevels(tmp.cl)
-        }
-        tmp.cells = sample_cells(tmp.cl, max.cl.size)
-        tmp.cl = tmp.cl[tmp.cells]
+      else{      
         if(length(tmp.cl)< 50000){
           dat = get_logNormal(dat, names(tmp.cl))
           tmp=sapply(c("means","present","sqr_means"), function(x){
