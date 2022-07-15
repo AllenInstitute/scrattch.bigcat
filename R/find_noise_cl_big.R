@@ -53,9 +53,11 @@ get_de_pair_big<- function(de.df, cl1, cl2)
 
 check_triplet_big<- function(de.df, triplet,top.n=50)
   {
-    de = de.df %>% filter(pair == triplet$pair)    
-    up.genes = with(de %>% filter(sign=="up" & rank <= top.n), setNames(logPval, gene))
-    down.genes = with(de %>% filter(sign=="down" & rank <=top.n), setNames(logPval, gene))
+    cl = tirplet$cl.up
+    cl1 = triplet$cl.down.x
+    cl2 = triplet$cl.down.y        
+    up.genes = with(de.df %>% filter(P1==cl1 & P2 ==cl2 & rank <= top.n), setNames(logPval, gene))
+    down.genes = with(de.df %>% filter(P1==cl2 & P2 = cl1 & rank <=top.n), setNames(logPval, gene))
     up.genes.score= get_de_truncate_score_sum(up.genes)
     down.genes.score = get_de_truncate_score_sum(down.genes)
     
@@ -63,27 +65,26 @@ check_triplet_big<- function(de.df, triplet,top.n=50)
     tmp2.de = get_de_pair_big(de.df,triplet$cl.up,triplet$P2)
 
 
-    tmp.genes=tmp2.de %>% filter(sign=="up") %>% pull(gene)
+    tmp.genes=de.df %>% filter(P1==cl & P2==cl2) %>% pull(gene)
     olap.up.genes1 = intersect(tmp.genes, names(up.genes))
     olap.up.num1 = length(olap.up.genes1)
     olap.up.score1 = get_de_truncate_score_sum(up.genes[olap.up.genes1])   
     olap.up.ratio1 = olap.up.score1 / up.genes.score
 
-    tmp.genes=tmp1.de %>% filter(sign=="up") %>% pull(gene)
+    tmp.genes=de.df %>% filter(P1==cl & P2=cl1) %>% pull(gene)
     olap.down.genes1 = intersect(tmp.genes, names(down.genes))    
     olap.down.num1 = length(olap.down.genes1)
     olap.down.score1 = get_de_truncate_score_sum(down.genes[olap.down.genes1])
     olap.down.ratio1 = olap.down.score1 / down.genes.score
     
-    up.genes2 =  with(tmp1.de %>% filter(sign=="down" & rank <= top.n), setNames(logPval, gene))
+    up.genes2 =  with(de.df %>% filter(P1=cl1 & P2=cl& rank <= top.n), setNames(logPval, gene))
     up.genes.score2 = get_de_truncate_score_sum(up.genes2)
     olap.up.genes2 = intersect(names(up.genes2),names(up.genes))
     olap.up.num2 = length(olap.up.genes2)
     olap.up.score2 = get_de_truncate_score_sum(up.genes2[olap.up.genes2])
     olap.up.ratio2 = olap.up.score2 /up.genes.score2
     
-    
-    down.genes2 = with(tmp2.de %>% filter(sign=="down" & rank <= top.n), setNames(logPval, gene))
+    up.genes2 =  with(de.df %>% filter(P1=c2 & P2=cl& rank <= top.n), setNames(logPval, gene))
     down.genes.score2 = get_de_truncate_score_sum(down.genes2)
     olap.down.genes2 = intersect(names(down.genes2),names(down.genes))
     olap.down.num2 = length(olap.down.genes2)
@@ -98,19 +99,19 @@ check_triplet_big<- function(de.df, triplet,top.n=50)
     score = sum(olap.score) / sum(c(up.genes.score, down.genes.score, up.genes.score2, down.genes.score2))
     
     result = list(
-      cl = triplet[,"cl.up"],
-      cl1= triplet[,"P1"],
-      cl2= triplet[,"P2"],
+      cl = cl,
+      cl1= cl1,
+      cl2= cl2,
       up.num = length(up.genes),
       down.num = length(down.genes),
       score = score      
-    )
+      )
     result = c(result, olap.ratio, olap.num)
     return(result)
   }
 
 
-find_doublets_all_big <- function(de.dir, summary.dir = NULL, triplets=NULL, all.pairs, mc.cores=30,score.th=0.8, olap.th=1.6,out.dir="doublets_result",overwrite=TRUE,...)
+find_doublets_all_big <- function(de.dir, summary.dir = NULL, triplets=NULL, cl.bin, mc.cores=30,score.th=0.8, olap.th=1.6,out.dir="doublets_result",overwrite=TRUE,...)
   {
     require(parallel)
     require(doMC)
@@ -122,7 +123,7 @@ find_doublets_all_big <- function(de.dir, summary.dir = NULL, triplets=NULL, all
     }
     ds = open_dataset(de.dir, partition="pair_bin")
     if(is.null(triplets)){
-      triplets=find_triplets_big(de.summary=summary.dir, all.pairs, ...)
+      triplets=find_triplets_big(de.summary=summary.dir, cl.bin=cl.bin,...)
     }
     tmp = triplets %>% select("pair", "cl.up") %>% group_by(cl.up) %>% collect() %>% summarize(size=n())
     candidates = tmp %>% arrange(-size) %>% pull(cl.up)
@@ -138,10 +139,9 @@ find_doublets_all_big <- function(de.dir, summary.dir = NULL, triplets=NULL, all
       cat(x, "triplets:", nrow(tmp),"\n")
       result.list= list()
       for(i in 1:nrow(tmp)){
-        triplet = tmp[i,]
-        pairs =  c(triplet$pair, triplet$pair1, triplet$pair2)
-        tmp.pair.bin=all.pairs %>% filter(pair %in% pairs) %>% pull(pair_bin) %>% unique
-        de.df = ds %>% filter(pair_bin %in% tmp.pair.bin & pair %in% pairs) %>% collect()
+        triplet = unlist(tmp[i,c("cl.up","cl.down.x","cl.down.y")])
+        triplet.bin = cl.bin %>% filter(cl %in% triplet) %>% pull(bin)%in% unique
+        de.df = ds %>% filter(bin.x %in% triplet.bin & bin.y %in% triplet.bin & P1 %in% triplet & P2 %in% triplet) %>% collect()
         result = check_triplet_big(de.df, triplet)
         result.list = c(result.list, list(result))
         if(result$score > score.th & result$olap.ratio.up.1 + result$olap.ratio.down.1 > olap.th){
@@ -189,10 +189,3 @@ plot_doublet_big <- function(big.dat, ds, cl, doublet.df, ...)
     }
   }
 
-
-check_cl_low_quality_big <- function(ds, x, cl.doublets)
-  {
-    tmp.summ=ds %>% filter(P1==x & !P2 %in% cl.doublets |P2==x & !P1 %in% cl.doublets)    
-    tmp.summ = tmp.summ %>% mutate(tmp.num=ifelse(P1==x,up.num, down.num),cl=ifelse(P1==x,P2, P1), cl.low=x)
-    tmp.summ = tmp.summ %>% arrange(tmp.num)
-  }

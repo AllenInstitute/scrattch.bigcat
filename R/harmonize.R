@@ -707,7 +707,7 @@ rm_genes <- function(dat.list, rm.genes)
   }
 
 
-get_de_result_big <- function(comb.dat, cl, sets=names(comb.dat$dat.list),cl.stats.list=NULL, de.d = "de_parquet",de.sum.d = "de_summary",pairs.fn="pairs.parquet",block.size=10000,mc.cores=25,...)
+get_de_result_big <- function(comb.dat, cl, cl.bin, sets=names(comb.dat$dat.list),cl.stats.list=NULL, de.d = "de_parquet",de.sum.d = "de_summary",pairs.fn="pairs.parquet",block.size=10000,mc.cores=25,...)
   {
     de.result=list()
     if(is.null(cl.stats.list)){
@@ -732,19 +732,19 @@ get_de_result_big <- function(comb.dat, cl, sets=names(comb.dat$dat.list),cl.sta
     
     for(x in sets){
       print(x)
-      tmp.cl = cl[names(cl) %in% (comb.dat$dat.list[[x]]$col_id)]
+      tmp.cl = cl[names(cl) %in% (comb.dat$dat.list[[x]]$col_id) & cl %in% colnames(cl.means.list[[x]])]
       if(is.factor(tmp.cl)){
         tmp.cl= as.factor(tmp.cl)
       }
-      tmp.de.d = file.path(de.d, x)
-      tmp.de.sum.d = file.path(de.sum.d, x)
-      de.result[[x]] = de_selected_pairs(norm.dat = NULL, cl = tmp.cl, pairs = pairs.df, de.param = comb.dat$de.param.list[[x]], cl.means= cl.means.list[[x]], cl.present=cl.present.list[[x]], cl.sqr.means=cl.sqr.means.list[[x]], mc.cores=mc.cores, out.dir=tmp.de.d, summary.dir = tmp.de.sum.d, return.summary=TRUE,...)
+      tmp.de.d = file.path(de.d, paste0("set=",x))
+      tmp.de.sum.d = file.path(de.sum.d, paste0("set=",x))
+      de.result[[x]] = de_selected_pairs(norm.dat = NULL, cl = tmp.cl, cl.bin=cl.bin, pairs = pairs.df, de.param = comb.dat$de.param.list[[x]], cl.means= cl.means.list[[x]], cl.present=cl.present.list[[x]], cl.sqr.means=cl.sqr.means.list[[x]], mc.cores=mc.cores, out.dir=tmp.de.d, summary.dir = tmp.de.sum.d, return.summary=TRUE,...)
     }
     return(de.result)
   }
 
 
-comb_de_result_big <- function(ds, cl.means.list, pairs, sets=names(cl.means.list), max.num=1000, lfc.conservation.th=0.7, mc.cores=20,out.dir="comb_de_parquet",overwrite=FALSE)
+comb_de_result_big <- function(ds, cl.means.list, cl.bin, sets=names(cl.means.list), max.num=1000, lfc.conservation.th=0.7, mc.cores=20,out.dir="comb_de_parquet",overwrite=FALSE)
 {
   library(data.table)  
   library(dplyr)
@@ -757,45 +757,39 @@ comb_de_result_big <- function(ds, cl.means.list, pairs, sets=names(cl.means.lis
   cl.means.list = sapply(cl.means.list, as.matrix, simplify=FALSE)
   all.cl = unique(unlist(lapply(cl.means.list,colnames)))
   all.gene = unique(unlist(lapply(cl.means.list,row.names)))
-  tmp = foreach::foreach(b  = unique(pairs$pair_bin),.combine="c") %dopar% {
-    print(b)
-    tmp.dir = file.path(out.dir, b)
-    if(!dir.exists(tmp.dir)){
-      dir.create(tmp.dir)
+  all.bins = unique(cl.bin$bin)
+  tmp=foreach(bin1 = all.bins,.combine="c")%:%
+    foreach(bin2 = all.bins,.combine="c")%dopar% {
+      if(!overwrite & dir.exists(file.path(out.dir, paste0("bin.x=",bin1), paste0("bin.y=",bin2)))){
+        return(NULL)
+      }        
+      de.df = droplevels(ds %>% filter(bin.x==bin1 & bin.y==bin2) %>% collect())     
+      de.genes = de.df %>% group_by(gene,P1,P2) %>% summarize(num=n(),logPval=mean(logPval))
+      pairs = de.df %>% select(pair, P1, P2, bin.x, bin.y) %>% distinct()
+      lfc = list()
+      for(set in sets){
+        cl.means= cl.means.list[[set]]
+        missing.cl = setdiff(all.cl,colnames(cl.means))
+        missing.gene = setdiff(all.gene,row.names(cl.means))
+        select = with(de.genes,!(P1 %in% missing.cl | P2 %in% missing.cl| gene %in% missing.gene))
+        exp1=get_pair_matrix(cl.means, de.genes$gene[select], de.genes$P1[select])
+        exp2=get_pair_matrix(cl.means, de.genes$gene[select], de.genes$P2[select])
+        lfc[[set]] = rep(NA, nrow(de.genes))
+        lfc[[set]][select] = exp1 - exp2
+      }
+      lfc = do.call("cbind",lfc)
+      denom = rowSums(!is.na(lfc))
+      up.ratio = rowSums(lfc > 1, na.rm=TRUE)/denom      
+      lfc.mean = rowMeans(lfc, na.rm=TRUE)    
+      de.genes = cbind(de.genes, data.frame(up.ratio, lfc=lfc.mean))
+###dplyr filter is slow for some reason
+      de.genes = with(de.genes,de.genes[up.ratio > lfc.conservation.th ,,drop=FALSE])
+      de.genes = de.genes %>% arrange(P1,P2, -num, -abs(lfc)) %>% group_by(P1,P2) %>% mutate(rank=1:n())
+      de.genes = de.genes %>% left_join(pairs, by=c("P1","P2"))
+      write_dataset(de.genes,  out.dir, partition=c("bin.x","bin.y"))
     }
-    de.fn=file.path(tmp.dir, "data.parquet")
-    if(!overwrite & file.exists(de.fn)){
-      cat(de.fn, "exists. Skip\n")
-      return(NULL)
-    }
-    de.df = ds %>% filter(pair_bin==b) %>% collect()
-    de.genes = de.df %>% group_by(pair,sign,gene) %>% summarize(num=n(),rank.mean = mean(rank),logPval=mean(logPval))
-    de.genes = de.genes %>% left_join(pairs[,c("pair","P1","P2")])
-    lfc = list()
-    for(set in sets){
-      cl.means= cl.means.list[[set]]
-      missing.cl = setdiff(all.cl,colnames(cl.means))
-      missing.gene = setdiff(all.gene,row.names(cl.means))
-      select = with(de.genes,!(P1 %in% missing.cl | P2 %in% missing.cl| gene %in% missing.gene))
-      exp1=get_pair_matrix(cl.means, de.genes$gene[select], de.genes$P1[select])
-      exp2=get_pair_matrix(cl.means, de.genes$gene[select], de.genes$P2[select])
-      lfc[[set]] = rep(NA, nrow(de.genes))
-      lfc[[set]][select] = exp1 - exp2
-    }
-    lfc = do.call("cbind",lfc)
-    denom = rowSums(!is.na(lfc))
-    up.ratio = rowSums(lfc > 1, na.rm=TRUE)/denom
-    down.ratio = rowSums(lfc < -1, na.rm=TRUE)/denom
-    lfc.mean = rowMeans(lfc, na.rm=TRUE)    
-    de.genes = cbind(de.genes, data.frame(up.ratio, down.ratio, lfc=lfc.mean))
-    ###dplyr filter is slow for some reason
-    de.genes = with(de.genes,de.genes[sign=="up"& up.ratio > lfc.conservation.th | sign=="down" & down.ratio > lfc.conservation.th,,drop=FALSE])
-    de.genes = de.genes %>% arrange(pair,sign, -num, -abs(lfc))
-    de.genes = de.genes %>% group_by(pair,sign) %>% mutate(rank=1:n())
-    tmp = as.data.frame(de.genes[,colnames(de.df)[1:6]])
-    write_parquet(tmp, sink=de.fn)
-  }
 }
+
  
 get_de_result_recursive <- function(comb.dat, all.results, sets=names(comb.dat$dat.list),ref.dat.list, max.cl.size = 300, ...)
   {

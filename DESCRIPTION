@@ -1,6 +1,6 @@
 Package: scrattch.bigcat
 Title: Iterative Clustering Analysis for Transcriptomic data for big matrix
-Version: 0.0.4
+Version: 0.0.5
 Authors@R: c(person("Zizhen", "Yao", email = "zizheny@alleninstitute.org", role = c("aut")),
   person("Lucas", "Graybuck", email = "lucasg@alleninstitute.org", role = c("aut", "cre")),
   person("Cindy", "van Velthoven", email = "cindy.vanvelthoven@alleninstitute.org", role = c("aut")),
