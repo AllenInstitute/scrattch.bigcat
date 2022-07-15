@@ -70,8 +70,8 @@ check_triplet_big<- function(de.df, triplet,top.n=50)
     olap.up.num1 = length(olap.up.genes1)
     olap.up.score1 = get_de_truncate_score_sum(up.genes[olap.up.genes1])   
     olap.up.ratio1 = olap.up.score1 / up.genes.score
-
-    tmp.genes=de.df %>% filter(P1==cl & P2=cl1) %>% pull(gene)
+    
+    tmp.genes=de.df %>% filter(P1==cl & P2==cl1) %>% pull(gene)
     olap.down.genes1 = intersect(tmp.genes, names(down.genes))    
     olap.down.num1 = length(olap.down.genes1)
     olap.down.score1 = get_de_truncate_score_sum(down.genes[olap.down.genes1])
