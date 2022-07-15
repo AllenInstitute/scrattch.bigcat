@@ -2,7 +2,7 @@ library(arrow)
 
 find_triplets_big <- function(de.summary="de_summary", all.pairs, select.cl = NULL, min.up.num=30, max.down.num=10, min.de.num=50)
   {
-    ds= open_dataset(de.summary, partition ="pair_bin")
+    ds= open_dataset(de.summary)
     select.pair = ds %>% filter(up.num > min.up.num & down.num < max.down.num & up.num  - down.num > min.up.num | down.num > min.up.num & up.num < max.down.num & down.num - up.num > min.up.num) %>% collect()
     select.pair = select.pair %>% filter(pair %in% all.pairs$pair)
     pairs = get_pairs(select.pair$pair)    
@@ -77,14 +77,14 @@ check_triplet_big<- function(de.df, triplet,top.n=50)
     olap.down.score1 = get_de_truncate_score_sum(down.genes[olap.down.genes1])
     olap.down.ratio1 = olap.down.score1 / down.genes.score
     
-    up.genes2 =  with(de.df %>% filter(P1=cl1 & P2=cl& rank <= top.n), setNames(logPval, gene))
+    up.genes2 =  with(de.df %>% filter(P1==cl1 & P2==cl& rank <= top.n), setNames(logPval, gene))
     up.genes.score2 = get_de_truncate_score_sum(up.genes2)
     olap.up.genes2 = intersect(names(up.genes2),names(up.genes))
     olap.up.num2 = length(olap.up.genes2)
     olap.up.score2 = get_de_truncate_score_sum(up.genes2[olap.up.genes2])
     olap.up.ratio2 = olap.up.score2 /up.genes.score2
     
-    up.genes2 =  with(de.df %>% filter(P1=c2 & P2=cl& rank <= top.n), setNames(logPval, gene))
+    up.genes2 =  with(de.df %>% filter(P1==c2 & P2==cl& rank <= top.n), setNames(logPval, gene))
     down.genes.score2 = get_de_truncate_score_sum(down.genes2)
     olap.down.genes2 = intersect(names(down.genes2),names(down.genes))
     olap.down.num2 = length(olap.down.genes2)
@@ -121,7 +121,7 @@ find_doublets_all_big <- function(de.dir, summary.dir = NULL, triplets=NULL, cl.
     if(!dir.exists(out.dir)){
       dir.create(out.dir)
     }
-    ds = open_dataset(de.dir, partition="pair_bin")
+    ds = open_dataset(de.dir)
     if(is.null(triplets)){
       triplets=find_triplets_big(de.summary=summary.dir, cl.bin=cl.bin,...)
     }
