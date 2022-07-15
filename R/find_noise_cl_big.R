@@ -57,7 +57,7 @@ check_triplet_big<- function(de.df, triplet,top.n=50)
     cl1 = triplet$cl.down.x
     cl2 = triplet$cl.down.y        
     up.genes = with(de.df %>% filter(P1==cl1 & P2 ==cl2 & rank <= top.n), setNames(logPval, gene))
-    down.genes = with(de.df %>% filter(P1==cl2 & P2 = cl1 & rank <=top.n), setNames(logPval, gene))
+    down.genes = with(de.df %>% filter(P1==cl2 & P2 == cl1 & rank <=top.n), setNames(logPval, gene))
     up.genes.score= get_de_truncate_score_sum(up.genes)
     down.genes.score = get_de_truncate_score_sum(down.genes)
     
