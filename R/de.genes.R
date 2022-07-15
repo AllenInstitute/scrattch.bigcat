@@ -988,118 +988,6 @@ plot_pair_matrix <- function(pair.num, file, directed=FALSE, dend=NULL, col=jet.
   }
 
 
-
-export_de_genes<- function(de.genes, cl.means, out.dir="de_parquet", pairs=NULL, block.size = 10000, mc.cores=5, top.n = 1000, overwrite=FALSE)
-  {
-    library(data.table)
-    library(arrow)
-    if(!dir.exists(out.dir)){
-      dir.create(out.dir)      
-    }
-    if(is.null(pairs)){      
-      pairs =data.frame(pair=names(de.genes))
-    }
-    else{
-      if(is.null(pairs$pair)){
-        pairs$pair = row.names(pairs)
-      }
-      pairs = pairs %>% filter(pair %in% names(de.genes))
-    }
-    if(is.null(pairs$pair_id)){
-      pairs = pairs %>% mutate(pair_id=1:nrow(pairs))
-    }    
-    if(is.null(pairs$pair_bin)){
-      pairs = pairs %>% mutate(pair_bin=ceiling(pair_id/block.size))
-    }
-    bins = pairs %>% pull(pair_bin) %>% unique
-    require(doMC)
-    require(foreach)
-    registerDoMC(cores=mc.cores)
-    tmp=foreach::foreach(bin=bins,.combine="c")%dopar% {
-      library(dplyr)    
-      library(arrow)
-      library(data.table)      
-      tmp.dir = file.path(out.dir,bin)
-      if(!dir.exists(tmp.dir)){
-        dir.create(tmp.dir)      
-      }
-      fn = file.path(tmp.dir,"data.parquet")
-      if(!overwrite){
-        if(file.exists(fn)){
-          return(NULL)
-        }
-      }
-      tmp.pairs= pairs %>% filter(pair_bin==bin) %>% pull(pair)
-      tmp = lapply(tmp.pairs, function(p){
-        if(is.null(de.genes[[p]])|de.genes[[p]]$num==0){
-          return(NULL)
-        }
-        up = de.genes[[p]]$up.genes
-        down = de.genes[[p]]$down.genes
-        up = head(up, top.n)
-        down = head(down, top.n)
-        pair = strsplit(p, "_")[[1]]
-        p1 = pair[1]
-        p2 = pair[2]
-        gene = c(names(up),names(down))
-        logPval = c(up, down)
-        rank = c(seq_len(length(up)),seq_len(length(down)))        
-        lfc =  abs(cl.means[gene, p1] - cl.means[gene, p2])
-        sign = rep(c("up","down"),c(length(up),length(down)))
-        df = data.frame(gene=gene, logPval=logPval,sign=sign, rank=rank)
-        df$pair = p
-        df$lfc = lfc       
-        df       
-      })
-      df = data.table::rbindlist(tmp)
-      write_parquet(df, sink=fn)
-      return(NULL)
-    }
-  }
-
-
-
-de_pair_summary <- function(de.genes, pairs=NULL, cl.bin, mc.cores=1, out.dir="de_summary",return.df = FALSE)
-  {
-    library(data.table)
-    library(arrow)
-    if(!is.null(out.dir) & !dir.exists(out.dir)){
-      dir.create(out.dir)
-    }
-    if(is.null(pairs)){      
-      pairs =data.frame(pair=names(de.genes))
-      pairs$pair = row.names(pairs)
-    }
-    if(is.null(pairs$bin.x)){
-      pairs = pairs %>% left_join(cl.bin, by=c("P1"="cl"))%>% left_join(cl.bin, by=c("P1"="cl"))
-    }
-    pairs = pairs %>% filter(pair %in% names(de.genes))
-    cols = c("num","up.num","down.num","score", "up.score","down.score")
-    require(doMC)
-    require(foreach)
-    
-    tmp.pairs = pairs %>% pull(pair)
-    tmp = sapply(cols, function(col){
-      df=unlist(sapply(tmp.pairs, function(p){
-        de.genes[[p]][col]
-      }))
-    },simplify=F)
-    df = do.call("data.frame",tmp)
-    df$pair = tmp.pairs
-    if(!is.null(out.dir)){
-      df = df %>% left_join(pairs[,c("pair","P1","P2","bin.x","bin.y")])
-      write_dataset(df, out.dir, partition=c("bin.x","bin.y"))
-    }
-    if(return.df){
-      list(df)
-    }
-    else{
-      NULL
-    }
-  }
-
-
-
 export_de_genes <- function(de.genes, cl.means, out.dir="de_parquet", pairs=NULL,cl.bin=NULL, mc.cores=1, top.n = 1000, overwrite=FALSE)
   {
     library(data.table)
@@ -1165,24 +1053,44 @@ export_de_genes <- function(de.genes, cl.means, out.dir="de_parquet", pairs=NULL
       }
   }
 
-tmp <- function()
+
+
+de_pair_summary <- function(de.genes, pairs=NULL, cl.bin, mc.cores=1, out.dir="de_summary",return.df = FALSE)
   {
-    bin.pair = df %>% select(bin.x, bin.y) %>% distinct
-    for(i in 1:nrow(bin.pair)){
-      x = bin.pair[["bin.x"]][i]
-      y = bin.pair[["bin.y"]][i]
-      df.tmp = df %>% filter(bin.x==x & bin.y == y)
-      d1 = file.path(out.dir, paste0("bin.x=",x))
-      if(!dir.exists(d1)){
-        dir.create(d1)
-      }
-      d2 = file.path(d1, paste0("bin.y=",y))
-      if(!dir.exists(d2)){
-        dir.create(d2)
-      }
-      fn= file.path(d2, "data.parquet")
-      cat("Write",fn, "\n")
-      write_parquet(df.tmp, sink=fn)      
+    library(data.table)
+    library(arrow)
+    if(!is.null(out.dir) & !dir.exists(out.dir)){
+      dir.create(out.dir)
+    }
+    if(is.null(pairs)){      
+      pairs =data.frame(pair=names(de.genes))
+      pairs$pair = row.names(pairs)
+    }
+    if(is.null(pairs$bin.x)){
+      pairs = pairs %>% left_join(cl.bin, by=c("P1"="cl"))%>% left_join(cl.bin, by=c("P1"="cl"))
+    }
+    pairs = pairs %>% filter(pair %in% names(de.genes))
+    cols = c("num","up.num","down.num","score", "up.score","down.score")
+    require(doMC)
+    require(foreach)
+    
+    tmp.pairs = pairs %>% pull(pair)
+    tmp = sapply(cols, function(col){
+      df=unlist(sapply(tmp.pairs, function(p){
+        de.genes[[p]][col]
+      }))
+    },simplify=F)
+    df = do.call("data.frame",tmp)
+    df$pair = tmp.pairs
+    if(!is.null(out.dir)){
+      df = df %>% left_join(pairs[,c("pair","P1","P2","bin.x","bin.y")])
+      write_dataset(df, out.dir, partition=c("bin.x","bin.y"))
+    }
+    if(return.df){
+      list(df)
+    }
+    else{
+      NULL
     }
   }
 
