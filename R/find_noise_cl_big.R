@@ -173,7 +173,7 @@ find_low_quality_big <- function(ds, low.th=2,pairs)
   }
 
 
-plot_doublet_big <- function(big.dat, ds, cl, doublet.df, ...)
+plot_doublet_big <- function(big.dat, ds, cl, doublet.df, cl.bin, ...)
   {
     for(i in 1:nrow(doublet.df)){                                  
       x = as.character(doublet.df[i, "cl"])
@@ -183,8 +183,7 @@ plot_doublet_big <- function(big.dat, ds, cl, doublet.df, ...)
       tmp.cl = setNames(factor(as.character(tmp.cl), c(x,y,z)), names(tmp.cl))
       tmp.cells= sample_cells(tmp.cl, 300)
       norm.dat = get_logNormal(big.dat, tmp.cells)
-      tmp.pairs = create_pairs(unique(tmp.cl))
-      markers = select_markers_ds(ds, pairs= row.names(tmp.pairs))
+      markers = select_markers_ds(ds, cl.bin = cl.bin, select.cl=unique(tmp.cl))
       tmp=display_cl(cl=tmp.cl[tmp.cells], norm.dat, prefix=paste0("doublet.",paste(levels(tmp.cl), collapse="_")), max.cl.size=100, markers=markers,...)
     }
   }

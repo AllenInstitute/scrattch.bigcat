@@ -948,13 +948,12 @@ big.dat.parquet.to.h5 <- function(big.dat, h5.file, type="float",mc.cores=10)
     }    
   }
 
-display_cl_big <- function(big.dat, cl, ds, max.cl.size=200,markers=NULL,...)
+display_cl_big <- function(big.dat, cl, ds, cl.bin, max.cl.size=200,markers=NULL,...)
   {
     tmp.cells= sample_cells(cl, max.cl.size)
     norm.dat = get_logNormal(big.dat, tmp.cells)
-    tmp.pairs = create_pairs(unique(cl))
     if(is.null(markers)){
-      markers = select_markers_ds(ds, pairs= row.names(tmp.pairs))
+      markers = select_markers_ds(ds, cl.bin=cl.bin, select.cl = unique(cl))
     }
     display_cl(cl=cl[tmp.cells], norm.dat, markers=markers,...)
   }
