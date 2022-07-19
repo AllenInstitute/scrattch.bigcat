@@ -53,7 +53,7 @@ get_de_pair_big<- function(de.df, cl1, cl2)
 
 check_triplet_big<- function(de.df, triplet,top.n=50)
   {
-    cl = tirplet$cl.up
+    cl = triplet$cl.up
     cl1 = triplet$cl.down.x
     cl2 = triplet$cl.down.y        
     up.genes = with(de.df %>% filter(P1==cl1 & P2 ==cl2 & rank <= top.n), setNames(logPval, gene))
@@ -84,7 +84,7 @@ check_triplet_big<- function(de.df, triplet,top.n=50)
     olap.up.score2 = get_de_truncate_score_sum(up.genes2[olap.up.genes2])
     olap.up.ratio2 = olap.up.score2 /up.genes.score2
     
-    up.genes2 =  with(de.df %>% filter(P1==c2 & P2==cl& rank <= top.n), setNames(logPval, gene))
+    down.genes2 =  with(de.df %>% filter(P1==cl2 & P2==cl& rank <= top.n), setNames(logPval, gene))
     down.genes.score2 = get_de_truncate_score_sum(down.genes2)
     olap.down.genes2 = intersect(names(down.genes2),names(down.genes))
     olap.down.num2 = length(olap.down.genes2)
@@ -140,9 +140,9 @@ find_doublets_all_big <- function(de.dir, summary.dir = NULL, triplets=NULL, cl.
       result.list= list()
       for(i in 1:nrow(tmp)){
         triplet = unlist(tmp[i,c("cl.up","cl.down.x","cl.down.y")])
-        triplet.bin = cl.bin %>% filter(cl %in% triplet) %>% pull(bin)%in% unique
+        triplet.bin = cl.bin %>% filter(cl %in% triplet)%>% pull(bin)%>% unique
         de.df = ds %>% filter(bin.x %in% triplet.bin & bin.y %in% triplet.bin & P1 %in% triplet & P2 %in% triplet) %>% collect()
-        result = check_triplet_big(de.df, triplet)
+        result = check_triplet_big(de.df, tmp[i,])
         result.list = c(result.list, list(result))
         if(result$score > score.th & result$olap.ratio.up.1 + result$olap.ratio.down.1 > olap.th){
           print(result)

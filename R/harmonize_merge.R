@@ -82,7 +82,7 @@ combine_cl_sim <- function(cl.rd.list, cl, comb.dat)
 #' @export
 #'
 #' @examples
-de_genes_pairs_multiple <- function(dat.list, de.param.list,cl, pairs, cl.means.list, cl.present.list, cl.sqr.means.list, lfc.conservation.th=0.6, de.genes.list=NULL, max.cl.size=200, mc.cores=1, method="fast_limma",block.size=100)
+de_genes_pairs_multiple <- function(dat.list, de.param.list,cl, pairs, cl.means.list, cl.present.list, cl.sqr.means.list, lfc.conservation.th=0.6, de.genes.list=NULL, max.cl.size=200, mc.cores=1, method="fast_limma")
   {
 
     if(is.null(de.genes.list)){
@@ -114,7 +114,7 @@ de_genes_pairs_multiple <- function(dat.list, de.param.list,cl, pairs, cl.means.
         next
       }
       
-      new.de.genes.list[[x]] = de_selected_pairs(norm.dat=NULL, cl= tmp.cl, pairs = tmp.pairs, de.param=de.param.list[[x]], method=method,cl.means=cl.means.list[[x]], cl.present = cl.present.list[[x]], cl.sqr.means=cl.sqr.means.list[[x]],mc.cores=mc.cores,block.size=block.size)$de.genes      
+      new.de.genes.list[[x]] = de_selected_pairs(norm.dat=NULL, cl= tmp.cl, pairs = tmp.pairs, de.param=de.param.list[[x]], method=method,cl.means=cl.means.list[[x]], cl.present = cl.present.list[[x]], cl.sqr.means=cl.sqr.means.list[[x]],mc.cores=mc.cores)$de.genes      
     }
     require(foreach)
     ###find the conserved DE genes

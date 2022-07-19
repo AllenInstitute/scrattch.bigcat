@@ -719,6 +719,8 @@ de_stats_pair <- function(df,
 #'
 de_all_pairs <- function(norm.dat, 
                          cl,
+                         cl.bin=NULL,
+                         cl.bin.size=100,
                          de.param = de_param(), 
                          method = "fast_limma", 
                          mc.cores=1,
@@ -731,16 +733,21 @@ de_all_pairs <- function(norm.dat,
     pairs = as.data.frame(pairs)
     pairs$pair = row.names(pairs)
     pairs$pair_id = 1:nrow(pairs)
+    if(is.null(cl.bin)){
+      cl.bin.size= min(100, length(cn)/mc.cores)
+      cl.bin = data.frame(cl=cn,bin = ceiling((1:length(cn)/cl.bin.size)))
+    }    
     library(arrow)
     write_parquet(pairs, sink=pairs.fn)
   }
   de.result=de_selected_pairs(norm.dat,
-    cl = cl,
+    cl = cl,    
     pairs = pairs,
+    cl.bin=cl.bin,
     de.param = de.param,
     method = method,
     mc.cores=mc.cores,
-    ...)  
+    ...)
   return(de.result$de.genes)
 }
 
