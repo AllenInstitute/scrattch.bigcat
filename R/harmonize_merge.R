@@ -395,7 +395,7 @@ merge_cl_multiple <- function(comb.dat, merge.sets, cl, anchor.genes, verbose=TR
   cl.small.cells= names(cl)[cl %in% cl.small]
   cl.big.cells= names(cl)[cl %in% cl.big]
   if(is.null(cl.stats.list)){
-    cl.stats.list = get_cl_stats_list(comb.dat, merge.sets, cl,mc.cores=mc.cores)
+    cl.stats.list = get_cl_stats_list(comb.dat, merge.sets, cl,mc.cores=mc.cores, use.min.cells=FALSE)
   }
   cl.means.list      = cl.stats.list$cl.means.list
   cl.present.list    = cl.stats.list$cl.present.list
@@ -439,7 +439,7 @@ merge_cl_multiple <- function(comb.dat, merge.sets, cl, anchor.genes, verbose=TR
       map.cl = setNames(colnames(tb)[apply(tb, 1, which.max)], row.names(tb))
       new.cl[unresolved.cells] = map.cl[as.character(cl[unresolved.cells])]
     }
-    new.cl.stats.list   = get_cl_stats_list(comb.dat, merge.sets, new.cl)
+    new.cl.stats.list   = get_cl_stats_list(comb.dat, merge.sets, new.cl, use.min.cells=FALSE)
     new.cl.means.list   = new.cl.stats.list$cl.means.list
     new.cl.present.list = new.cl.stats.list$cl.present.list
     new.cl.sqr.means.list = new.cl.stats.list$cl.sqr.means.list
