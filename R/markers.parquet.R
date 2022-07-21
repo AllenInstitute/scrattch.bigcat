@@ -79,13 +79,27 @@ check_pairs_ds <- function(ds, to.add, genes,cl.bin, de=NULL, mc.cores=10,max.nu
     return(de.checked)
   }
 
-select_markers_ds <- function(ds, cl.bin, select.cl=NULL, top.n=20)
+select_markers_ds <- function(ds, cl.bin, select.cl=NULL, top.n=20,mc.cores=10)
   {
-    if(is.null(select.cl)){
-      select.bin = cl.bin %>% select(cl %in% select.cl) %>% pull(bin)
-      ds = ds %>% filter(bin.x %in% select.bin & bin.y %in% select.bin & P1 %in% select.cl & P2 %in% select.cl)      
+    if(!is.null(select.cl)){
+      cl.bin = cl.bin %>% filter(cl %in% select.cl)
     }
-    select.markers = ds %>% filter(rank < top.n) %>% pull(gene)  %>% unique    
+    select.bin = cl.bin %>% pull(bin) %>% unique
+    mc.cores=min(mc.cores, length(select.bin))
+    library(parallel)    
+    require(doMC)
+    require(foreach)
+    registerDoMC(cores=mc.cores)    
+    tmp=foreach::foreach(bin1=select.bin,.combine="c")%:%
+      foreach::foreach(bin2=select.bin,.combine="c")%dopar% {
+        de = ds %>% filter(bin.x %in% bin1 & bin.y %in% bin2)
+        if(is.null(select.cl)){
+          de = de %>% filter(P1 %in% select.cl & P2 %in% select.cl)            
+        }
+        de %>% filter(rank <= top.n) %>% pull(gene) %>% unique
+      }
+    select.markers=unique(tmp)
+    return(select.markers)
   }
 
 

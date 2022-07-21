@@ -56,7 +56,7 @@ combine_cl_sim <- function(cl.rd.list, cl, comb.dat)
       else{
         cl.size = table(cl[names(cl) %in% comb.dat$dat.list[[set]]$col_id])
       }
-      select.cl = names(cl.size)[cl.size >= comb.dat$de.param.list[[set]]$min.cells]
+      select.cl = names(cl.size)[cl.size > comb.dat$de.param.list[[set]]$min.cells]
       if(length(select.cl)==0){
         return(NULL)
       }      
@@ -113,23 +113,22 @@ de_genes_pairs_multiple <- function(dat.list, de.param.list,cl, pairs, cl.means.
       if(nrow(tmp.pairs)==0){
         next
       }
-      
-      new.de.genes.list[[x]] = de_selected_pairs(norm.dat=NULL, cl= tmp.cl, pairs = tmp.pairs, de.param=de.param.list[[x]], method=method,cl.means=cl.means.list[[x]], cl.present = cl.present.list[[x]], cl.sqr.means=cl.sqr.means.list[[x]],mc.cores=mc.cores)$de.genes      
+      new.de.genes.list[[x]] = de_selected_pairs(norm.dat=NULL, cl= tmp.cl, pairs = tmp.pairs, de.param=de.param.list[[x]], method=method,cl.means=cl.means.list[[x]], cl.present = cl.present.list[[x]], cl.sqr.means=cl.sqr.means.list[[x]],mc.cores=mc.cores)
     }
     require(foreach)
     ###find the conserved DE genes
     pairs = as.data.frame(pairs)
     pairs$pair = row.names(pairs)
-    pairs$pair_id = ceiling((1:nrow(pairs))/block.size)    
+    pairs$pair_bin = ceiling((1:nrow(pairs))/5000)
 
-    mc.cores = min(mc.cores, max(pairs$pair_id))
+    mc.cores = min(mc.cores, max(pairs$pair_bin))
     registerDoMC(cores=mc.cores)
     top.n=1000
     cl.means.list = sapply(cl.means.list, as.matrix, simplify=FALSE)
-    tmp = foreach::foreach(pid = unique(pairs$pair_id),.combine="c") %dopar% {
+    tmp = foreach::foreach(pid = unique(pairs$pair_bin),.combine="c") %dopar% {
       tmp=lapply(names(new.de.genes.list),function(set){
         de.genes = new.de.genes.list[[set]]
-        select.pairs = pairs %>% filter(pair_id==pid & pair %in% names(de.genes)) %>% pull(pair)
+        select.pairs = pairs %>% filter(pair_bin==pid & pair %in% names(de.genes)) %>% pull(pair)
         de.df = lapply(select.pairs, function(p){
           if(is.null(de.genes[[p]])|de.genes[[p]]$num==0){
             return(NULL)
@@ -223,7 +222,7 @@ de_genes_multiple <- function(comb.dat, cl, merge.sets=names(comb.dat$dat.list),
   }
 
   
-get_cl_stats_list <- function(comb.dat, merge.sets, cl, max.cl.size=300,mc.cores=10)
+get_cl_stats_list <- function(comb.dat, merge.sets, cl, max.cl.size=300,mc.cores=10, use.min.cells=TRUE)
   {
     cl.stats.list = list()
     meta.df=comb.dat$meta.df
@@ -232,7 +231,9 @@ get_cl_stats_list <- function(comb.dat, merge.sets, cl, max.cl.size=300,mc.cores
       de.param = comb.dat$de.param.list[[set]]
       tmp.cl = cl[names(cl) %in% row.names(meta.df)[meta.df$platform==set]]
       tmp.size = table(tmp.cl)
-      tmp.cl= tmp.cl[tmp.cl %in% names(tmp.size)[tmp.size > de.param$min.cells]]
+      if(use.min.cells){
+        tmp.cl= tmp.cl[tmp.cl %in% names(tmp.size)[tmp.size >= de.param$min.cells]]
+      }
       if(is.factor(tmp.cl)){
         tmp.cl=droplevels(tmp.cl)
       }

@@ -1228,8 +1228,10 @@ de_selected_pairs <- function(norm.dat,
  
    require(doMC)
    require(foreach)
+   mc.cores=min(mc.cores, ceiling(nrow(pairs)/5000))
    registerDoMC(cores=mc.cores)
 
+   
    de_combine <- function(result.1, result.2)
      {
       library(data.table)
@@ -1260,13 +1262,18 @@ de_selected_pairs <- function(norm.dat,
       foreach(bin2 = bin1:length(all.bins),.combine="c")%dopar% {
         x= all.bins[bin1]
         y = all.bins[bin2]
-        if(!overwrite & !is.null(out.dir) & file.exists(file.path(out.dir, paste0("bin.x=",x), paste0("bin.y=",y)))){
-          return(list(de.genes=NULL, de.summary=NULL))
+        if(!overwrite & !is.null(out.dir)){
+          if(file.exists(file.path(out.dir, paste0("bin.x=",x), paste0("bin.y=",y)))){
+            return(list(de.genes=NULL, de.summary=NULL))
+          }
         }
         library(dplyr)
         library(arrow)     
         library(data.table)
         tmp.pairs = pairs %>% filter(bin.x==x & bin.y==y| bin.x==y & bin.y==x)
+        if(is.null(tmp.pairs)|nrow(tmp.pairs)==0){
+          return(list(de.genes=NULL, de.summary=NULL))
+        }
         de.genes=sapply(1:nrow(tmp.pairs), function(i){
           pair = unlist(tmp.pairs[i, c("P1","P2")])
           if(method == "limma") {
@@ -1324,9 +1331,11 @@ de_selected_pairs <- function(norm.dat,
         list(de.genes=de.genes, de.summary=de.summary)        
       }
    de.genes= do.call("c", de_list[names(de_list)=="de.genes"])
+   names(de.genes)=gsub("de.genes.","",names(de.genes))
    de.summary = do.call("c", de_list[names(de_list)=="de.summary"])
    if(is.null(de.summary)){
      return(de.genes)
    }
    return(list(de.genes, de.summary))
  }
+
