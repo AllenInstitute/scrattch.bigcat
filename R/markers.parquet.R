@@ -274,7 +274,11 @@ select_pos_markers_ds<- function(ds, cl, select.cl, genes, cl.bin, n.markers=1, 
     require(doMC)
     require(foreach)
     registerDoMC(cores=mc.cores)
-
+    
+    if (!dir.exists(out.dir)) {
+        dir.create(out.dir)
+    }
+    
     ###for each cluster, find markers that discriminate it from other types
     cl.markers <- foreach(x=select.cl, .combine="c") %dopar% {
       print(x)
