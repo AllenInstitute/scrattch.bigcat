@@ -238,6 +238,10 @@ get_cl_stats_list <- function(comb.dat, merge.sets, cl, max.cl.size=300,mc.cores
         tmp.cl=droplevels(tmp.cl)
       }
       tmp.cells = sample_cells(tmp.cl, max.cl.size)
+      if(length(tmp.cells)==0){
+        cl.stats.list[[set]]=NULL
+        next
+      }
       tmp.cl = tmp.cl[tmp.cells]
       
       if(comb.dat$type=="mem"){
