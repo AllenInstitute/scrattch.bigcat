@@ -54,6 +54,7 @@ get_PCA <- function(dat, max.pca, verbose=FALSE, method="zscore",th=2,fun="prcom
     }
     if(method=="elbow"){
       dim.elbow = findElbowPoint(pca$sdev^2)
+      dim.elbow = min(dim.elbow, ncol(pca$rotation))
       if(verbose){
         cat("elbow dim:", dim.elbow, "\n")
       }      
