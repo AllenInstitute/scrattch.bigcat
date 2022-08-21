@@ -56,7 +56,7 @@ combine_cl_sim <- function(cl.rd.list, cl, comb.dat)
       else{
         cl.size = table(cl[names(cl) %in% comb.dat$dat.list[[set]]$col_id])
       }
-      select.cl = names(cl.size)[cl.size > comb.dat$de.param.list[[set]]$min.cells]
+      select.cl = names(cl.size)[cl.size >= comb.dat$de.param.list[[set]]$min.cells]
       if(length(select.cl)==0){
         return(NULL)
       }      

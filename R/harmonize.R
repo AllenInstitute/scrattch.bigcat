@@ -83,6 +83,7 @@ knn_combine <- function(result.1, result.2)
 #' @examples
 get_knn_batch <- function(dat, ref.dat, k, method="cor", dim=NULL, batch.size, mc.cores=1,return.distance=FALSE,transposed=TRUE, index=NULL,clear.index=FALSE, ntrees=50) 
   {
+    library(BiocNeighbors)
     if(return.distance){
       fun = "knn_combine"
     }
