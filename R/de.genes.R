@@ -1161,6 +1161,16 @@ de_selected_pairs <- function(norm.dat,
        cl.bin.size= min(100, length(select.cl)/mc.cores)
        cl.bin = data.frame(cl=select.cl,bin = ceiling((1:length(select.cl)/cl.bin.size)))
      }
+     
+     if(is.character(cl.bin$cl)){
+      cl.bin$cl <- as.integer(as.character(cl.bin$cl))
+    }
+    if(is.character(pairs$P1)){
+      pairs <- pairs %>%
+        mutate(P1 = as.integer(as.character(P1)),
+               P2 = as.integer(as.character(P1)))
+    }
+    
      pairs = pairs %>% left_join(cl.bin, by=c("P1"="cl")) %>% left_join(cl.bin, by=c("P2"="cl"))
    }
 
