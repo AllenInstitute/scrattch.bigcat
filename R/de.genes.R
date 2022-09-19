@@ -430,15 +430,15 @@ de_pair_t.test <- function(pair,
 }
 
 
-get_cl_sigma <- function(mat,cl, cl.means=NULL, cl.sqr.means = NULL)
+get_cl_sigma <- function(mat,as.factor(cl), cl.means=NULL, cl.sqr.means = NULL)
   {
     cl.size = table(cl)
     cl.size = setNames(as.vector(cl.size),names(cl.size))
     if(is.null(cl.means)){
-      cl.means = get_cl_means(mat,cl)
+      cl.means = get_cl_means(mat,as.factor(cl))
     }
     if(is.null(cl.sqr.means)){
-      cl.sqr.means =  get_cl_sqr_means(mat,cl)
+      cl.sqr.means =  get_cl_sqr_means(mat,as.factor(cl))
     }
     df = sum(cl.size) - length(cl.size)
     sigma = sqrt(colSums( t(cl.sqr.means - cl.means^2) * cl.size[colnames(cl.sqr.means)]) / df)
@@ -449,10 +449,10 @@ get_cl_sigma <- function(mat,cl, cl.means=NULL, cl.sqr.means = NULL)
 simple_lmFit <- function(norm.dat, cl, cl.means = NULL, cl.sqr.means = NULL)
   {
     if(is.null(cl.means)){
-      cl.means = get_cl_means(norm.dat, cl)
+      cl.means = get_cl_means(norm.dat, as.factor(cl))
     }
     if(is.null(cl.sqr.means)){
-      cl.sqr.means = get_cl_sqr_means(norm.dat, cl)
+      cl.sqr.means = get_cl_sqr_means(norm.dat, as.factor(cl))
     }
     cl.size = table(cl)
     cl.means = cl.means[,names(cl.size)]
@@ -1170,7 +1170,6 @@ de_selected_pairs <- function(norm.dat,
         mutate(P1 = as.character(as.integer(P1)),
                P2 = as.character(as.integer(P1)))
     }
-    
      pairs = pairs %>% left_join(cl.bin, by=c("P1"="cl")) %>% left_join(cl.bin, by=c("P2"="cl"))
    }
 
@@ -1194,20 +1193,20 @@ de_selected_pairs <- function(norm.dat,
   
   # Mean computation
    if(is.null(cl.means)) {
-     cl.means <- as.data.frame(get_cl_means(norm.dat, cl))
+     cl.means <- as.data.frame(get_cl_means(norm.dat, as.factor(cl)))
    } else {
      cl.means <- as.data.frame(cl.means)     
    }
    
    # Compute fraction of cells in each cluster with expression >= low.th
    if(is.null(cl.present)){
-     cl.present <- as.data.frame(get_cl_present(norm.dat, cl, de.param$low.th))
+     cl.present <- as.data.frame(get_cl_present(norm.dat, as.factor(cl), de.param$low.th))
    } else{
      cl.present <- as.data.frame(cl.present)   
    }
    
    if(is.null(cl.sqr.means)){
-     cl.sqr.means <- as.data.frame(get_cl_sqr_means(norm.dat, cl))
+     cl.sqr.means <- as.data.frame(get_cl_sqr_means(norm.dat, as.factor(cl)))
    } else{
      cl.sqr.means <- as.data.frame(cl.sqr.means)
    }
@@ -1233,7 +1232,7 @@ de_selected_pairs <- function(norm.dat,
      fit = simple_lmFit(norm.dat, cl=cl, cl.means= cl.means, cl.sqr.means= cl.sqr.means)
    }
    else if (method == "t.test"){
-     cl.vars <- as.data.frame(get_cl_vars(norm.dat, cl, cl.means = cl.means))
+     cl.vars <- as.data.frame(get_cl_vars(norm.dat, as.factor(cl), cl.means = cl.means))
    }
  
    require(doMC)
