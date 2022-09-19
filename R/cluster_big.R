@@ -431,6 +431,8 @@ merge_cl_big <- function(big.dat,
       de.result = de_selected_pairs(norm.dat=NULL, cl=cl, pairs=tmp.pairs, de.param= de.param, method=de.method, cl.means=cl.means, cl.present=cl.present, cl.sqr.means=cl.sqr.means,mc.cores=mc.cores)
       tmp.de.genes = de.result$de.genes
       de.genes[names(tmp.de.genes)] = tmp.de.genes
+      print(head(names(de.genes)))
+      class(de.genes)
       pairs = get_pairs(names(de.genes))
       
       tmp.pairs= intersect(names(de.genes), row.names(merge.pairs))
