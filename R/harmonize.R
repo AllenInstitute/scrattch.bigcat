@@ -180,7 +180,7 @@ get_knn <- function(dat, ref.dat, k, method ="cor", dim=NULL,index=NULL, build.i
         dat = l2norm(dat,by="row")
       }
       if (method=="cor"){
-        dat = dat - rowMeans(dat)
+        dat = dat - Matrix::rowMeans(dat)
         dat = l2norm(dat,by = "row")
       }
       knn.result = queryAnnoy(X= ref.dat, query=dat, k=k, precomputed = index)
@@ -1049,4 +1049,32 @@ batch_process <- function(x, batch.size, FUN, mc.cores=1, .combine="c",bins=NULL
     }
     return(results)
   }
+
+
+
+
+#' Title
+#'
+#' @param cl.means.list 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+get_gene_cl_correlation <- function(cl.means.list)
+  {
+    sets=names(cl.means.list)
+    gene.cl.cor = list()
+    for(i in 1:(length(cl.means.list)-1)){
+      for(j in (i+1):length(cl.means.list)){
+        pair= paste(sets[i], sets[j], sep=":")
+        common.cl = intersect(colnames(cl.means.list[[i]]), colnames(cl.means.list[[j]]))
+        common.genes = intersect(row.names(cl.means.list[[i]]), row.names(cl.means.list[[j]]))
+        gene.cor =  pair_cor(cl.means.list[[i]][common.genes,common.cl],cl.means.list[[j]][common.genes,common.cl])
+        gene.cl.cor[[pair]] = gene.cor
+      }
+    }
+    return(gene.cl.cor)
+  }
+
 

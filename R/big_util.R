@@ -87,7 +87,7 @@ get_cols <-  function(big.dat, cols, rows=big.dat$row_id, ...)
     return(mat)
   }
 
-get_cols_fbm<- function(big.dat, cols, rows=big.dat$row_id, keep.col=TRUE, sparse=TRUE)
+get_cols_fbm<- function(big.dat, cols, rows=big.dat$row_id, keep.col=TRUE, sparse=TRUE, mc.cores=0)
   {
     library(Matrix)
     if(is.character(cols)){
@@ -173,6 +173,7 @@ init_mat_parqeut_dense <- function(dir, col.id, row.id, val=0, col.bin.size=5000
     x = rep(val, row.bin.size*col.bin.size)
     fn = file.path(dir, "x.parquet")
     write_parquet(as.data.table(x), sink=fn)
+    registerDoMC(cores=mc.cores)
     foreach(a = unique(col.df$col_bin)) %dopar%{
       d= file.path(dir,a)
       dir.create(d)
@@ -843,7 +844,7 @@ big_dat_apply <- function(big.dat, cols, FUN, .combine="c",  mc.cores=1, block.s
     library(parallel)    
     require(doMC)
     bins = get_big_bins(big.dat, cols, block.size=block.size)
-    #print(length(bins))
+    cat("Total bins",length(bins),"\n")
     mc.cores = min(mc.cores, length(bins))
     registerDoMC(cores=mc.cores)
     res = foreach(bin = bins, .combine=.combine) %dopar% FUN(big.dat, bin, ...)
@@ -956,4 +957,15 @@ display_cl_big <- function(big.dat, cl, ds, cl.bin, max.cl.size=200,markers=NULL
       markers = select_markers_ds(ds, cl.bin=cl.bin, select.cl = unique(cl))
     }
     display_cl(cl=cl[tmp.cells], norm.dat, markers=markers,...)
+  }
+
+
+cell_cl_cor <- function(big.dat, cl, cl.dat, cl.bin.size=50)
+  {
+    library(parallel)    
+    require(doMC)
+    require(foreach)
+    foreach(a = unique(col.df$col_bin)) %dopar%{
+      d= file.path(dir,a)
+    }
   }

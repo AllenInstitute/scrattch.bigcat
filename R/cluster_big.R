@@ -23,16 +23,15 @@ big_project <- function(big.dat, select.cells, rot, mc.cores=1,...)
   {
     require(Matrix)
     my_project <- function(big.dat, cols){
+      print(length(cols))
       fn = tempfile()
       dat = get_logNormal(big.dat, cols)
       dat = dat[row.names(rot),,drop=FALSE]
       dat = Matrix::crossprod(dat, rot)
       df= as.data.frame(as.matrix(dat))
-      df$cell_id = row.names(df)      
+      df$cell_id = row.names(df)
       write_parquet(df, sink=fn)
-      rm(df)
-      rm(dat)
-      gc()
+      print(fn)
       fn
     }
     rd.dat.fn = big_dat_apply(big.dat, select.cells, FUN=my_project, .combine="c",  mc.cores=mc.cores,...)
