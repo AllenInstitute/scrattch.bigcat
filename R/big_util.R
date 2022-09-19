@@ -87,7 +87,7 @@ get_cols <-  function(big.dat, cols, rows=big.dat$row_id, ...)
     return(mat)
   }
 
-get_cols_fbm<- function(big.dat, cols, rows=big.dat$row_id, keep.col=TRUE, sparse=TRUE)
+get_cols_fbm<- function(big.dat, cols, rows=big.dat$row_id, keep.col=TRUE, sparse=TRUE,...)
   {
     library(Matrix)
     if(is.character(cols)){
