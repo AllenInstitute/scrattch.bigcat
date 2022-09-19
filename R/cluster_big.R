@@ -103,7 +103,7 @@ onestep_clust_big<- function(big.dat,
       sampled = select.cells
     }
     if(is.null(counts) & sum(!sampled %in% colnames(counts))>0){
-      counts = get_counts(big.dat, sampled,sparse=TRUE,mc.cores=mc.cores)
+      counts = get_counts(big.dat, sampled,sparse=TRUE)
     }
     else{
       counts = counts[,sampled]
