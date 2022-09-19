@@ -430,7 +430,7 @@ de_pair_t.test <- function(pair,
 }
 
 
-get_cl_sigma <- function(mat,as.factor(cl), cl.means=NULL, cl.sqr.means = NULL)
+get_cl_sigma <- function(mat,cl, cl.means=NULL, cl.sqr.means = NULL)
   {
     cl.size = table(cl)
     cl.size = setNames(as.vector(cl.size),names(cl.size))
