@@ -1006,6 +1006,9 @@ export_de_genes <- function(de.genes, cl.means, out.dir="de_parquet", pairs=NULL
       pairs = as.data.frame(get_pairs(names(de.genes)))
       pairs$pair = row.names(pairs)
     }
+    pairs$P1 = as.character(pairs$P1)
+    pairs$P1 = as.character(pairs$P2)
+    cl.bin$cl = as.character(cl.bin$cl)
     if(is.null(pairs$bin.x)){
       if(!is.null(cl.bin)){
         pairs = pairs %>% left_join(cl.bin, by=c("P1"=cl))  %>% left_join(cl.bin, by=c("P2"=cl))
@@ -1064,7 +1067,6 @@ export_de_genes <- function(de.genes, cl.means, out.dir="de_parquet", pairs=NULL
   }
 
 
-
 de_pair_summary <- function(de.genes, pairs=NULL, cl.bin, mc.cores=1, out.dir="de_summary",return.df = FALSE)
   {
     library(data.table)
@@ -1076,6 +1078,9 @@ de_pair_summary <- function(de.genes, pairs=NULL, cl.bin, mc.cores=1, out.dir="d
       pairs =data.frame(pair=names(de.genes))
       pairs$pair = row.names(pairs)
     }
+    pairs$P1 = as.character(pairs$P1)
+    pairs$P1 = as.character(pairs$P2)
+    cl.bin$cl = as.character(cl.bin$cl)
     if(is.null(pairs$bin.x)){
       pairs = pairs %>% left_join(cl.bin, by=c("P1"="cl"))%>% left_join(cl.bin, by=c("P1"="cl"))
     }
