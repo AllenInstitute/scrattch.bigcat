@@ -1172,6 +1172,15 @@ de_selected_pairs <- function(norm.dat,
     pairs = pairs %>% left_join(cl.bin, by=c("P1"="cl")) %>% left_join(cl.bin, by=c("P2"="cl"))
   }
   
+  if(is.integer(cl.bin$cl)){
+    cl.bin$cl <- as.character(as.integer(cl.bin$cl))
+  }
+  if(is.integer(pairs$P1)){
+    pairs <- pairs %>%
+      mutate(P1 = as.character(as.integer(P1)),
+             P2 = as.character(as.integer(P1)))
+  }
+  
   pairs = pairs %>% filter(P1 %in% select.cl & P2 %in% select.cl) %>% collect()
   cl.size = cl.size[select.cl]
   
