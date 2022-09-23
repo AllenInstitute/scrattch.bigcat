@@ -188,7 +188,7 @@ select_markers_pair_direction_ds <- function(ds, add.num, genes, cl.bin, de=NULL
 #'
 #' @examples
 # Always directory
-select_markers_pair_group_top_ds <- function(g1,g2,ds, genes, cl.bin, select.sign="up", n.markers=20,...)
+select_markers_pair_group_top_ds <- function(g1,g2,ds, genes, cl.bin, select.sign="up", n.markers=20,mc.cores=1, ...)
 {
   require(matrixStats)
   require(data.table)
