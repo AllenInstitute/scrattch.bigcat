@@ -637,7 +637,7 @@ big.dat_logNormal_parquet <- function(big.dat, parquet.dir, denom=10^6,mc.cores=
   }
 
 
-get_cl_stats_fbm <- function(big.dat, cl, max.cells=100000, stats=c("means"),genes.allowed=NULL)
+get_cl_stats_fbm <- function(big.dat, cl, max.cells=100000, stats=c("means"),genes.allowed=NULL,mc.cores=1)
   {
     if(!is.factor(cl)){
       cl = as.factor(cl)
