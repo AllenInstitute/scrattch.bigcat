@@ -716,7 +716,7 @@ map_cells_knn_bs <- function(test.dat, iter=100,cl.dat=NULL,train.index.bs=NULL,
       iter = length(train.index.bs)
     }
     else{
-      index.bs = build_train_index_bs(cl.dat, method=method,iter=iter, ...)
+      train.index.bs = build_train_index_bs(cl.dat, method=method,iter=iter, ...)
     }
     library(data.table)
     map.list <- foreach(i=1:iter, .combine="c") %dopar% {

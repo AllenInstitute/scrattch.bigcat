@@ -556,7 +556,7 @@ plot_RD_cl_subset<- function(rd.dat, cl, cl.color,cl.label,select.samples,missin
     cl.label = cl.label[names(cl.size)]
     cl.color = cl.color[names(cl.size)]
     cl.cex=cl.cex[names(cl.size)]
-    rd.rd = rd.dat[order(row.names(rd.dat) %in% select.samples),]
+    rd.dat = rd.dat[order(row.names(rd.dat) %in% select.samples),]
     plot_RD_cl(rd.dat, cl, cl.color, cl.label,cex=cl.cex, ...)    
   }
   

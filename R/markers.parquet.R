@@ -67,10 +67,11 @@ update_gene_score_ds <- function(gene.score, ds, to.remove, cl.bin, de=NULL, max
   }
 
 
-check_pairs_ds <- function(ds, to.add, genes,cl.bin, de=NULL, mc.cores=10,max.num=1000)
+check_pairs_ds <- function(de.dir, to.add, genes,cl.bin, de=NULL, mc.cores=10,max.num=1000)
   {
     require(doMC)
     registerDoMC(cores=mc.cores)
+    to.add = to.add[,c("P1","P2")]
     to.add = to.add %>% left_join(cl.bin,by=c("P1"="cl")) %>% left_join(cl.bin,by=c("P2"="cl"))
     select.P1 = to.add %>% pull(P1) %>% unique
     select.P2 = to.add %>% pull(P2) %>% unique    
@@ -81,24 +82,32 @@ check_pairs_ds <- function(ds, to.add, genes,cl.bin, de=NULL, mc.cores=10,max.nu
       cl.bin.x = to.add %>% pull(bin.x) %>% unique
       cl.bin.y = to.add %>% pull(bin.y) %>% unique
       if(length(cl.bin.x)*length(cl.bin.y)*length(genes) < 10^5){
+        ds = open_dataset(de.dir)
         de = ds %>% filter(bin.x  %in% cl.bin.x & bin.y %in% cl.bin.y & gene %in% genes & P1 %in% select.P1 & P2 %in% select.P2 & rank < max.num ) %>% collect
         de.checked = to.add %>% left_join(de %>% filter(rank < max.num & gene %in% genes)) %>% group_by(P1,P2) %>% summarize(checked=sum(!is.na(gene)))
       }
       else{
         de.checked=foreach::foreach(bin1=cl.bin.x,.combine="c")%:%
           foreach::foreach(bin2=cl.bin.y,.combine="c")%dopar% {
-            tmp.pairs = to.add %>%  filter(bin.x == bin1 & bin.y ==bin.y)
-            tmp.de = ds %>% filter(bin.x == bin1 & bin.y ==bin.y & gene %in% genes & rank < max.num ) %>% collect
-            tmp.de = tmp.de %>% right_join(to.add)
+            cat("bin", bin1, bin2, "\n")
+            tmp.pairs = to.add %>%  filter(bin.x == bin1 & bin.y ==bin2)
+            ###
+            #tmp.de =ds %>% filter(bin.x == bin1 & bin.y ==bin.y) %>% collect %>% filter(gene %in% genes & rank < max.num)
+            #Directly read from parquet file is faster
+            d = file.path(de.dir, paste0("bin.x=",bin1), paste0("bin.y=",bin2))
+            fn = dir(d, pattern="parquet")
+            tmp.de = read_parquet(file.path(d, fn))
+            tmp.de = tmp.de %>% filter(gene %in% genes & rank < max.num)
+            tmp.de = tmp.de %>% right_join(tmp.pairs)
             de.checked = tmp.de %>% group_by(P1,P2) %>% summarize(checked=n())
             list(de.checked)
-          }
+          }      
         de.checked = rbindlist(de.checked)
       }
     }
     return(de.checked)
   }
-    
+
 select_markers_ds <- function(ds, cl.bin, select.cl=NULL, top.n=20,mc.cores=10)
   {
     if(!is.null(select.cl)){
@@ -137,8 +146,9 @@ select_markers_ds <- function(ds, cl.bin, select.cl=NULL, top.n=20,mc.cores=10)
 ##' @param mc.cores 
 ##' @return 
 ##' @author Zizhen Yao
-select_markers_pair_direction_ds <- function(ds, add.num, genes, cl.bin, de=NULL, mc.cores=mc.cores,max.genes=1000,...)
+select_markers_pair_direction_ds <- function(de.dir, add.num, genes, cl.bin, de=NULL, mc.cores=mc.cores,max.genes=1000,...)
   {
+    ds = open_dataset(de.dir)
     select.genes=c()
     if(!is.null(de)){
       de = de %>% filter(gene %in% genes)
@@ -151,7 +161,7 @@ select_markers_pair_direction_ds <- function(ds, add.num, genes, cl.bin, de=NULL
       }
       g = as.character(gene.score$gene[1])
       print(g)
-      new.checked = check_pairs_ds(ds, to.add=add.num %>% select(P1,P2), genes=g,cl.bin=cl.bin,de=de, ...)
+      new.checked = check_pairs_ds(de.dir, to.add=add.num %>% select(P1,P2), genes=g,cl.bin=cl.bin,de=de, ...)
       add.num$checked=NULL
       add.num = add.num %>% left_join(new.checked, by=c("P1","P2"))      
       add.num = add.num %>% mutate(checked=ifelse(is.na(checked),0,checked)) %>% mutate(num = num-checked)
@@ -214,13 +224,14 @@ select_markers_pair_group_top_ds <- function(g1,g2,ds, genes, cl.bin, select.sig
 }
 
 #############
-select_markers_pair_group_ds <- function(g1,g2,ds, genes, cl.bin, n.markers=20,select.sign=c("up","down"),max.genes=50,...)
-  {    
+select_markers_pair_group_ds <- function(g1,g2,de.dir, genes, cl.bin, n.markers=20,select.sign=c("up","down"),max.genes=50,...)
+  {
+    ds = open_dataset(de.dir)
     result = select_markers_pair_group_top_ds( g1,g2,ds=ds, genes=genes, cl.bin=cl.bin, n.markers=n.markers,select.sign=select.sign,...)
     markers=c(result$up.genes, result$down.genes)
     add.num = result$to.add
     add.num$num = n.markers
-    new.checked = check_pairs_ds(ds, to.add=add.num %>% select(P1,P2),genes=markers,cl.bin=cl.bin,...)
+    new.checked = check_pairs_ds(de.dir, to.add=add.num %>% select(P1,P2),genes=markers,cl.bin=cl.bin,...)
     add.num = add.num %>% left_join(new.checked, by=c("P1","P2"))      
     add.num = add.num %>% mutate(checked=ifelse(is.na(checked),0,checked)) %>% mutate(num = num-checked)            
     add.num = add.num %>% filter(num > 0)
@@ -228,28 +239,28 @@ select_markers_pair_group_ds <- function(g1,g2,ds, genes, cl.bin, n.markers=20,s
     if(nrow(add.num)>0 & max.genes > 0){
       add.num$checked=NULL
       genes = setdiff(genes,markers)
-      more.markers <- select_markers_pair_direction_ds(ds, add.num=add.num, genes=genes,cl.bin=cl.bin,max.genes=max.genes,...)
+      more.markers <- select_markers_pair_direction_ds(de.dir, add.num=add.num, genes=genes,cl.bin=cl.bin,max.genes=max.genes,...)
       more.markers <- more.markers$select.genes
       markers= c(markers, more.markers)
     }
     return(markers)
   }
 
-select_N_markers_ds<- function(ds, select.cl=NULL,pair.num=1, add.num=NULL, genes, cl.bin, default.markers=NULL,...)
+select_N_markers_ds<- function(de.dir, select.cl=NULL,pair.num=1, add.num=NULL, genes, cl.bin, default.markers=NULL,...)
   {
     if(is.null(add.num)){
       add.num = as.data.frame(create_pairs(select.cl, direction="directional"))
       add.num$num = pair.num
     }
     if(!is.null(default.markers)){      
-      de.checked.num = check_pairs_ds(ds, add.num, genes=default.markers, cl.bin=cl.bin,...)
+      de.checked.num = check_pairs_ds(de.dir, add.num, genes=default.markers, cl.bin=cl.bin,...)
       add.num = add.num %>% left_join(de.checked.num,by=c("P1","P2"))
       add.num = add.num %>% mutate(checked=ifelse(is.na(checked),0,checked)) %>% mutate(num = num-checked)
       add.add = add.num %>% filter(num > 0)
       genes = setdiff(genes, default.markers)
       add.num$checked=NULL
     }
-    markers <- select_markers_pair_direction_ds(ds, add.num=add.num, genes=genes,cl.bin=cl.bin,...)$select.genes    
+    markers <- select_markers_pair_direction_ds(de.dir, add.num=add.num, genes=genes,cl.bin=cl.bin,...)$select.genes    
   }
 
 
@@ -268,13 +279,13 @@ select_N_markers_ds<- function(ds, select.cl=NULL,pair.num=1, add.num=NULL, gene
 #' @export
 #'
 #' @examples
-select_pos_markers_ds<- function(ds, cl, select.cl, genes, cl.bin, n.markers=1,  mc.cores=1,out.dir="cl.markers",...)
+select_pos_markers_ds<- function(de.dir, cl, select.cl, genes, cl.bin, n.markers=1,  mc.cores=1,out.dir="cl.markers",...)
   {
     library(parallel)    
     require(doMC)
     require(foreach)
     registerDoMC(cores=mc.cores)
-    
+    ds = open_dataset(de.dir)
     if (!dir.exists(out.dir)) {
         dir.create(out.dir)
     }
@@ -286,7 +297,7 @@ select_pos_markers_ds<- function(ds, cl, select.cl, genes, cl.bin, n.markers=1, 
       g2 = setdiff(cl, x)
       cl.bin.x = cl.bin %>% filter(cl==g1) %>% pull(bin)      
       select.de = ds %>% filter(bin.x==cl.bin.x & P1==g1 & P2 %in% g2) %>% collect()
-      markers <- select_markers_pair_group_ds(g1,g2, ds=ds, de=select.de, genes=genes, cl.bin=cl.bin, n.markers=n.markers,select.sign="up",...)
+      markers <- select_markers_pair_group_ds(g1,g2, de.dir=de.dir, de=select.de, genes=genes, cl.bin=cl.bin, n.markers=n.markers,select.sign="up",...)
       save(markers, file=file.path(out.dir, paste0(x, ".markers.rda")))
       tmp=list(markers)
       names(tmp)=x
@@ -357,17 +368,16 @@ select_markers_groups_top_ds <- function(ds, cl.group, select.groups=names(cl.gr
   }
 
 #cl.group is a data.frame with column "cl", and "group"
-select_markers_groups <- function(ds, cl.group, genes, cl.bin, select.groups= unique(cl.group$group), n.markers=20,mc.cores=1,...)
+select_markers_groups <- function(de.dir, cl.group, genes, cl.bin, select.groups= unique(cl.group$group), n.markers=20,mc.cores=1,...)
   {
-
+    ds = open_dataset(de.dir)
+    cl.group$cl = as.character(cl.group$cl)
+    group_pair=create_pairs(unique(cl.group$group))
     library(parallel)
-    library(parallel)    
     require(doMC)
     require(foreach)
     registerDoMC(cores=mc.cores)
-    cl.group$cl = as.character(cl.group$cl)
-    group_pair=create_pairs(unique(cl.group$group))    
-    
+
     group.markers <- foreach(i=1:nrow(group_pair), .combine="c") %dopar% {
       x= group_pair[i,1]
       y= group_pair[i,2]
@@ -385,19 +395,27 @@ select_markers_groups <- function(ds, cl.group, genes, cl.bin, select.groups= un
     pairs = pairs %>% left_join(cl.group, by=c("P2"="cl"))
     pairs = pairs %>% filter(group.x!=group.y) 
    
-    de.checked.num = check_pairs_ds(ds, pairs[,c("P1","P2")], genes=group.markers,cl.bin=cl.bin, mc.cores=mc.cores)    
+    de.checked.num = check_pairs_ds(de.dir, pairs[,c("P1","P2")], genes=group.markers,cl.bin=cl.bin, mc.cores=mc.cores)    
     to.add = pairs %>% left_join(de.checked.num) %>% mutate(num=n.markers - checked)
     
-    #tmp.add = to.add %>% filter(num >= n.markers/2)
-    #more.markers = ds %>% filter(pair %in% tmp.add$pair & rank < n.markers) %>% collect() %>% right_join(tmp.add) %>% pull(gene) %>% unique    
-    #more.markers= setdiff(more.markers, group.markers)
-    de.checked.num = check_pairs_ds(ds, to.add, genes=more.markers, cl.bin=cl.bin, mc.cores=20)    
+    tmp.add = to.add %>% filter(num >= n.markers/2)
+    more.markers = ds %>% filter(pair %in% tmp.add$pair & rank < n.markers) %>% collect() %>% right_join(tmp.add) %>% pull(gene) %>% unique    
+    more.markers= setdiff(more.markers, group.markers)
+    de.checked.num = check_pairs_ds(de.dir, to.add, genes=more.markers, cl.bin=cl.bin, mc.cores=20)    
     to.add = to.add[,1:5] %>% left_join(de.checked.num,by=c("P1","P2"))
     to.add = to.add %>% mutate(checked=ifelse(is.na(checked),0,checked)) %>% mutate(num = num-checked) %>% filter(num > 0)
     select.markers=union(more.markers, group.markers)
     de = ds %>% filter(pair %in% to.add$pair & !gene %in% select.markers) %>% collect()    
-    more.markers2 <- select_markers_pair_direction_ds(ds, to.add, de=de, genes.allowed=unique(de$gene) ,all.pairs=all.pairs)    
+    more.markers2 <- select_markers_pair_direction_ds(de.dir, to.add, de=de, genes.allowed=unique(de$gene) ,all.pairs=all.pairs)    
     markers = head(c(select.markers, more.markers2$markers), 3000)    
   }
 
   
+get_de_genes <- function(ds, cl.bin, cl1, cl2)
+  {
+    bin1 = cl.bin %>% filter(cl==cl1) %>% pull(bin)
+    bin2 = cl.bin %>% filter(cl==cl2) %>% pull(bin)
+    select.genes = ds %>% filter(bin.x==bin1 & P1==cl1 & bin.y==bin2 & P2==cl2 | bin.x==bin2 & P2==cl1 & bin.y==bin1 & P1==cl2) %>% collect()
+    return(select.genes)
+  }
+
