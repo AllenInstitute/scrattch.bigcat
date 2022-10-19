@@ -61,8 +61,7 @@ impute_knn_global_big <- function(comb.dat, split.results, select.genes, select.
           }
           else{
             rd.dat <- rd_PCA_big(comb.dat$dat.list[[x]], select.genes, select.cells=tmp.cells, sampled.cells = ref.cells, max.pca =max.dim, th=th, method=method,mc.cores=mc.cores,verbose=verbose)$rd.dat
-          }
-          
+          }          
           if(!is.null(rm.eigen)){
             rd.dat  = filter_RD(rd.dat, rm.eigen, rm.th,verbose=verbose)
           }
@@ -80,33 +79,29 @@ impute_knn_global_big <- function(comb.dat, split.results, select.genes, select.
         knn = get_knn_batch(rd.dat, rd.dat[ref.cells,], method="Annoy.Euclidean", mc.cores=mc.cores, batch.size=50000,k=k,transposed=FALSE,clear.index=TRUE)        
         impute.dat.big = impute.dat.list[[x]]
         impute_dat_big(impute.dat.big, comb.dat$dat.list[[x]], knn, ref.cells, select.genes)
-      }
 ###cross-modality Imputation based on nearest neighbors in each iteraction of clustering using anchoring genes or genes shown to be differentiall expressed. 
-    for(x in names(split.results)[-1]){      
-      result = split.results[[x]]
-      if(x == names(split.results)[1]){
-        impute.genes = select.genes
-      }
-      else{
-        impute.genes=intersect(select.genes,c(result$markers, result$select.genes))
-      }
-      cat("split group",x,length(impute.genes),"\n")
-      cl = result$cl
-      knn = result$knn
-      for(ref.set in intersect(names(result$ref.list),names(ref.list))){
-        tmp.cells = row.names(knn)
-        query.cells = intersect(tmp.cells[comb.dat$meta.df[tmp.cells,"platform"] != ref.set], select.cells)
-        select.cols = comb.dat$meta.df[comb.dat$all.cells[knn[1,]],"platform"] == ref.set
-        if(sum(select.cols)==0){
-          next
+        for(x in names(split.results)){      
+          result = split.results[[x]]
+          impute.genes = intersect(c(result$markers,result$select.genes), select.genes)
+          cat("split group",x,length(impute.genes),"\n")
+          cl = result$cl
+          knn = result$knn
+          for(ref.set in intersect(names(result$ref.list),names(ref.list))){
+            tmp.cells = row.names(knn)
+            query.cells = intersect(tmp.cells[comb.dat$meta.df[tmp.cells,"platform"] != ref.set], select.cells)
+            select.cols = comb.dat$meta.df[comb.dat$all.cells[knn[1,]],"platform"] == ref.set
+            if(sum(select.cols)==0){
+              next
+            }
+            if(length(query.cells)==0){
+              next
+            }
+            select.knn = knn[query.cells,select.cols,drop=F]
+            impute_dat_big(impute.dat.big, big.dat=impute.dat.big, knn=knn, ref.cells=comb.dat$all.cells, select.genes=impute.genes)        
+          }
         }
-        if(length(query.cells)==0){
-          next
-        }
-        select.knn = knn[query.cells,select.cols,drop=F]
-        impute_dat_big(impute.dat.big, big.dat=impute.dat.big, knn=knn, ref.cells=comb.dat$all.cells, select.genes=select.genes)        
       }
-    }
+    
     return(impute.dat.list)
   }
 

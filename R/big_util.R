@@ -32,6 +32,21 @@ append_big.dat_fbm <- function(big.dat, mat)
     return(big.dat)
   }
 
+
+###Only works for fbm
+cbind_big.dat_fbm <- function(rows, big.dat1, cols1=NULL, big.dat2, cols2=NULL)
+  {
+    offset = big.dat$fbm$ncol
+    ind_nozero <- which(mat != 0, arr.ind = TRUE)
+    tmp = ind_nozero
+    tmp[,2] = tmp[,2] + offset
+    big.dat$fbm$add_columns(ncol(mat))
+    big.dat$fbm[tmp] <- mat[ind_nozero]
+    big.dat$col_id = c(big.dat$col_id, colnames(mat))
+    return(big.dat)
+  }
+
+
 ###Only works for fbm
 convert_mat_list_big.dat_fbm <- function(mat.fn, backingfile=NULL, ...)
   {
@@ -68,6 +83,31 @@ reorder_big.dat_fbm <- function(big.dat, new.cols,backingfile=NULL)
     big.dat$fbm = big_copy(big.dat$fbm, ind.col=cols, backingfile=backingfile)
     big.dat$col_id = big.dat$col_id[cols]
     return(big.dat)
+  }
+
+big.dat_subset_fbm <- function(big.dat, rows, cols)
+  {
+    if(is.character(cols)){
+      cols = match(cols, big.dat$col_id)
+    }
+    else{
+      cols = cols
+    }
+
+    if(is.character(rows)){
+      rows = match(rows, big.dat$rows_id)
+    }
+    else{
+      rows = rows
+    }
+    
+    if(is.null(backingfile)){
+      backingfile=file.path(getwd(), paste0(Sys.Date(),"_fbm"))
+    }
+    big.dat$fbm = big_copy(big.dat$fbm, ind.col=cols, ind.row=rows,backingfile=backingfile)
+    big.dat$col_id = big.dat$col_id[cols]
+    big.dat$row_id = big.dat$col_id[rows]    
+    return(big.dat)    
   }
 
 get_cols <-  function(big.dat, cols, rows=big.dat$row_id, ...)

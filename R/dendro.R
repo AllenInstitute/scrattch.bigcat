@@ -63,7 +63,7 @@ build_dend <- function(cl.dat, cl.cor=NULL, l.rank=NULL, l.color=NULL, nboot=100
       pvclust.result <- pvclust::pvclust(cl.dat, method.dist = "cor" ,method.hclust = "average", nboot=nboot, parallel=parallel)
       dend = as.dendrogram(pvclust.result$hclust)
       dend = label_dend(dend)$dend
-      dend = dend %>% pvclust_show_signif_gradient(pvclust.result, signif_type = "bp", signif_col_fun=colorRampPalette(c("white","gray","darkred","black")))
+      dend = dend %>% pvclust_show_signif_gradient(pvclust.result, signif_type = "bp", signif_col_fun=colorRampPalette(c("gray98","gray","black")))
       #%>% pvclust_show_signif(pvclust.result, signif_type="bp", signif_value=c(2,1))
     }
     else{
@@ -439,7 +439,7 @@ get_dend_markers_direction <- function(dend, n = 20)
 #' @export
 #'
 #' @examples
-plot_dend <- function(dend, dendro_data=NULL,node_size=1,r=c(-0.1,1))
+plot_dend <- function(dend, dendro_data=NULL,node_size=1,r=c(-0.1,1),missing.edge.color="darkred")
   {
     require(dendextend)
     require(ggplot2)
@@ -451,16 +451,19 @@ plot_dend <- function(dend, dendro_data=NULL,node_size=1,r=c(-0.1,1))
     node_data = dendro_data$nodes
     label_data <- dendro_data$labels
     segment_data <- dendro_data$segments
+    select=is.na(segment_data$col)
+    segment_data[select,"col"] = missing.edge.color
+    segment_data[select,"lwd"] = 1    
     if(is.null(node_data$node_color)){
       node_data$node_color="black"
     }
     ggplot() + 
-    geom_text(data = node_data, aes(x = x, y = y, label = label,color=node_color),size=node_size,vjust = 1) +
-    geom_segment(data = segment_data, aes(x=x,xend=xend,y=y,yend=yend), color="gray50") +
-    geom_text(data = label_data, aes(x = x, y = -0.01, label = label, color = col),size=node_size,angle = 90, hjust = 1) +
-    scale_color_identity() +
-    theme_dendro() +
-    scale_y_continuous(limits = r)
+      geom_text(data = node_data, aes(x = x, y = y, label = label,color=node_color),size=node_size,vjust = 1) +
+      geom_segment(data = segment_data, aes(x=x,xend=xend,y=y,yend=yend, color=col)) +
+        geom_text(data = label_data, aes(x = x, y = -0.01, label = label, color = col),size=node_size,angle = 90, hjust = 1) +
+          scale_color_identity() +
+            theme_dendro() +
+              scale_y_continuous(limits = r)
   }
 
 
