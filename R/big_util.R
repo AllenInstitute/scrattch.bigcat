@@ -1009,3 +1009,17 @@ cell_cl_cor <- function(big.dat, cl, cl.dat, cl.bin.size=50)
       d= file.path(dir,a)
     }
   }
+
+
+get_genes_mat <- function(comb.dat, select.cells, genes)
+  {
+    dat.list=list()
+    for(x in names(comb.dat$dat.list)){
+      big.dat = comb.dat$dat.list[[x]]
+      tmp.cells = intersect(select.cells,big.dat$col_id)
+      dat.list[[x]] = get_cols(big.dat, cols=tmp.cells, rows=genes,sparse=TRUE)
+    }
+    dat = do.call("cbind",dat.list)
+    return(dat)
+  }
+

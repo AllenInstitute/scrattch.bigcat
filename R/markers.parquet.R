@@ -387,8 +387,7 @@ select_markers_groups <- function(de.dir, cl.group, genes, cl.bin, select.groups
       result=select_markers_pair_group_top_ds(g1,g2,ds=ds, n.markers=n.markers, genes=genes,cl.bin=cl.bin,select.sign=c("up","down"),...)
       list(c(result$up.genes, result$down.genes))
     }
-    group.markers=unique(unlist(group.markers))
-   
+    group.markers=unique(unlist(group.markers))   
     pairs = as.data.frame(create_pairs(cl.group$cl,direction="directional"))
     pairs$pair = row.names(pairs)
     pairs = pairs %>% left_join(cl.group, by=c("P1"="cl"))
@@ -396,18 +395,12 @@ select_markers_groups <- function(de.dir, cl.group, genes, cl.bin, select.groups
     pairs = pairs %>% filter(group.x!=group.y) 
    
     de.checked.num = check_pairs_ds(de.dir, pairs[,c("P1","P2")], genes=group.markers,cl.bin=cl.bin, mc.cores=mc.cores)    
-    to.add = pairs %>% left_join(de.checked.num) %>% mutate(num=n.markers - checked)
+    add.numm = pairs %>% left_join(de.checked.num) %>% mutate(num=n.markers - checked)
     
-    tmp.add = to.add %>% filter(num >= n.markers/2)
-    more.markers = ds %>% filter(pair %in% tmp.add$pair & rank < n.markers) %>% collect() %>% right_join(tmp.add) %>% pull(gene) %>% unique    
-    more.markers= setdiff(more.markers, group.markers)
-    de.checked.num = check_pairs_ds(de.dir, to.add, genes=more.markers, cl.bin=cl.bin, mc.cores=20)    
-    to.add = to.add[,1:5] %>% left_join(de.checked.num,by=c("P1","P2"))
-    to.add = to.add %>% mutate(checked=ifelse(is.na(checked),0,checked)) %>% mutate(num = num-checked) %>% filter(num > 0)
-    select.markers=union(more.markers, group.markers)
-    de = ds %>% filter(pair %in% to.add$pair & !gene %in% select.markers) %>% collect()    
-    more.markers2 <- select_markers_pair_direction_ds(de.dir, to.add, de=de, genes.allowed=unique(de$gene) ,all.pairs=all.pairs)    
-    markers = head(c(select.markers, more.markers2$markers), 3000)    
+    select.markers=group.markers
+    genes = setdiff(genes, select.markers)
+    more.markers <- select_markers_pair_direction_ds(de.dir, add.num=to.add,  genes=genes, cl.bin=cl.bin, mc.cores=mc.cores,...)    
+    select.markers = c(select.markers, more.markers$markers)
   }
 
   

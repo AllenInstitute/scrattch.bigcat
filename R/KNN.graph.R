@@ -10,12 +10,11 @@
 #' @export
 #'
 #' @examples
-get_knn_graph <- function(rd.dat, cl, ref.cells=row.names(rd.dat), k=15, knn.outlier.th=2, outlier.frac.th=0.5,clean.cells=row.names(rd.dat), knn.result=NULL)
+get_knn_graph <- function(rd.dat, cl, ref.cells=row.names(rd.dat),method="Annoy.Cosine", k=15, knn.outlier.th=2, outlier.frac.th=0.5,clean.cells=row.names(rd.dat), knn.result=NULL,mc.cores=10)
 {
   if(is.null(knn.result)){
     ref.rd.dat = rd.dat[ref.cells,]
-    index = buildAnnoy(ref.rd.dat, distance ="Euclidean", transposed = FALSE)
-    knn.result = get_knn_batch(rd.dat, ref.rd.dat, k, method="Annoy.Euclidean", batch.size=10000, mc.cores=10, index=index, transposed=FALSE, return.distance=TRUE)
+    knn.result = get_knn_batch(rd.dat, ref.rd.dat, k, method=method, batch.size=10000, mc.cores=mc.cores, transposed=FALSE, return.distance=TRUE)
   }
   knn  = knn.result[[1]]
   knn.dist = knn.result[[2]]
@@ -134,7 +133,7 @@ plot_constellation <- function(knn.cl.df, cl.center.df, out.dir, node.label="clu
   g <- ggplot_build(p.nodes)
   dots <-g[["data"]][[1]] #dataframe with geom_point size, color, coords
   
-  nodes <- left_join(cl.center.df, dots, by=c("x","y"))
+  nodes <- left_join(cl.center.df, dots, by=c("x","y")) %>% ungroup()
 
   
   ###==== if node.dodge==TRUE new xy coords are calculated for overlapping nodes.

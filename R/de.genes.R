@@ -1246,21 +1246,7 @@ de_selected_pairs <- function(norm.dat,
   require(doMC)
   require(foreach)
   mc.cores=min(mc.cores, ceiling(nrow(pairs)/5000))
-  registerDoMC(cores=mc.cores)
-  
-  
-  de_combine <- function(result.1, result.2)
-     {
-       library(data.table)
-       de.genes = c(result.1$de.genes, result.2$de.genes)
-       if(!is.null(result.1$de.summary)){
-        de.summary = rbindlist(result.1$de.summary, result.2$de.summary)
-        return(list(de.genes=de.genes, de.summary=de.summary))
-      }
-       else{
-         return(list(de.genes=de.genes))
-       }         
-     }
+  registerDoMC(cores=mc.cores)  
   
   if(!is.null(out.dir)){
     if(!dir.exists(out.dir)){
