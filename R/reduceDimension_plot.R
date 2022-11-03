@@ -772,3 +772,103 @@ plot_3d_umap_anno <- function(umap.fn,
                          dir=dest.d)
 }
 
+
+
+
+#' plot_RD_highlight
+#'
+#' @param rd.dat 
+#' @param meta 
+#' @param meta.col 
+#' @param show.legend 
+#' @param legend.size 
+#' @param fg.cells vector of id's to plot on foreground
+#' @param fg.cex foreground point size
+#' @param fg.alpha foreground alpha value
+#' @param bg.cex
+#' @param bg.alpha
+#' @param bg.color default is null and will use the meta.col if color provided all background points will get that color
+#' 
+#' @return
+#' @export
+#' @example
+#' 
+#' 
+
+
+plot_RD_highlight <- function(rd.dat, 
+                              meta, 
+                              meta.col,
+                              show.legend=TRUE, 
+                              legend.size=5,
+                              theme.void = TRUE,
+                              fg.cells = rownames(rd.dat),
+                              fg.cex = 0.3, 
+                              fg.alpha = 0.7,
+                              bg.cex = 0.15,  
+                              bg.alpha = 0.25,
+                              bg.color=NULL ) {
+  
+  rd.dat = as.data.frame(rd.dat)
+  colnames(rd.dat)[1:2] = c("Dim1","Dim2")  
+  rd.dat$meta <- meta[match(rownames(rd.dat), names(meta))]
+  
+  bg.df <- rd.dat[!(rownames(rd.dat) %in% fg.cells),]
+  
+  if(nrow(bg.df)>0) {
+    bg.df$alpha.val <- bg.alpha
+    bg.df$cex <- bg.cex
+    
+    if(!is.null(bg.color)){
+      bg.df$color <- bg.color
+    } else {
+      bg.df$color <- meta.col[match(bg.df$meta, names(meta.col))]
+    }
+  }
+  
+  
+  fg.df <- rd.dat[rownames(rd.dat) %in% fg.cells,]
+  
+  if(nrow(fg.df)>0){
+    fg.df$alpha.val <- fg.alpha
+    fg.df$cex <- fg.cex
+    fg.df$color <- meta.col[match(fg.df$meta, names(meta.col))]
+  }
+  
+  plot.df <- rbind(bg.df, fg.df)
+  
+  plot.col <- unique(plot.df[,c("color", "meta")])
+  plot.col <- setNames(plot.col$color, plot.col$meta)
+  
+  g = ggplot(plot.df, aes(Dim1, Dim2, colour=meta)) + 
+    geom_point(#colour=plot.df$color, 
+      size = plot.df$cex, 
+      alpha= plot.df$alpha.val,
+      shape= 19) +
+    scale_colour_manual(values=plot.col,
+                        name=NULL)
+  
+  if(isTRUE(theme.void)){
+    g = g + theme_void()
+  } else {
+    g = g+ theme(panel.background=element_blank(),
+                 axis.line.x = element_line(colour = "black"),
+                 axis.line.y = element_line(colour = "black"))
+  }
+  
+  
+  if(show.legend == FALSE){
+    g = g + theme(legend.gosition="none") 
+  }  else{
+    g = g + guides(colour = guide_legend(override.aes = list(size=legend.size)))
+  }
+  
+  g = g + coord_fixed(ratio=1)
+  
+  return(g)
+  
+}
+
+
+
+
