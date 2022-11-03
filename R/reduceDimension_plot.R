@@ -132,45 +132,71 @@ plot_RD_cl <- function(rd.dat, cl, cl.color=NULL, cl.label=NULL,cex=0.15, fn.siz
 #' @param cex 
 #' @param legend.size 
 #' @param alpha.val 
+#' @param palette default it 2 color blue-red but can be defined using low and high params. Preset options include c("comet","greymagma","ylgnbu", "spectral", "turbo" )
 #'
 #' @return
 #' @export
 #'
 #' @examples
-plot_RD_meta <- function(rd.dat, meta, meta.col=NULL,show.legend=TRUE, cex=0.15, legend.size=5,alpha.val=1,low="blue",high="red")
-  {
-    rd.dat = as.data.frame(rd.dat)
-    colnames(rd.dat)[1:2] = c("Dim1","Dim2")
-    library(ggplot2)
-    rd.dat$meta = meta
-    p=ggplot(rd.dat, aes(Dim1, Dim2)) + geom_point(aes(color=meta),size=cex)
-    if(is.factor(meta)){
-      rd.dat = droplevels(rd.dat)
-      if(is.null(meta.col)){
-        if(length(levels(meta)) > 2){
-          meta.col = setNames(jet.colors(length(levels(meta))), levels(meta))
-        }
-        else{
-          meta.col = setNames(c("blue", "orange"), levels(meta))
-        }
-      }      
-      p = p+ scale_color_manual(values=alpha(as.vector(meta.col[levels(rd.dat$meta)]),alpha.val))
-    }
-    else{
+plot_RD_meta <- function(rd.dat, meta, meta.col=NULL,show.legend=TRUE, cex=0.15, legend.size=5,alpha.val=1,
+                         palette = NULL, reverse = FALSE, low="blue",high="red")
+{
+  rd.dat = as.data.frame(rd.dat)
+  colnames(rd.dat)[1:2] = c("Dim1","Dim2")
+  library(ggplot2)
+  rd.dat$meta = meta
+  p=ggplot(rd.dat, aes(Dim1, Dim2)) + geom_point(aes(color=meta),size=cex)
+  if(is.factor(meta)){
+    rd.dat = droplevels(rd.dat)
+    if(is.null(meta.col)){
+      if(length(levels(meta)) > 2){
+        meta.col = setNames(jet.colors(length(levels(meta))), levels(meta))
+      }
+      else{
+        meta.col = setNames(c("blue", "orange"), levels(meta))
+      }
+    }      
+    p = p+ scale_color_manual(values=alpha(as.vector(meta.col[levels(rd.dat$meta)]),alpha.val))
+  }
+  else{
+    if(!is.null(palette)){
+      
+      if(palette == "comet"){
+        cols <- c("#E6E7E8", "#3A97FF", "#8816A7", "black")
+        
+      } else if (palette == "greymagma" ){
+        cols <-  c("grey","#FB8861FF", "#B63679FF", "#51127CFF", "#000004FF")
+        
+      } else if (palette == "ylgnbu" ){
+        cols <-  c("#ffffd9","#c7e9b4","#41b6c4","#1d91c0","#225ea8","#081d58")
+        
+      } else if (palette == "spectral" ){
+        cols <-  c("D53E4F", "F46D43", "FDAE61", "FEE08B", "FFFFBF", "E6F598", "ABDDA4", "66C2A5", "3288BD")
+      }   else if (palette == "turbo" ){
+        cols <-  c("#7A0403","#D23105","#FB8022","#EDD03A","#A3FD3D","#1AE4B6","#4686FA","#466BE3","#30123B")
+      } else{ print("Error: palette unknown")}  
+      
+      if(isTRUE(reverse) ){
+        p = p+ scale_color_gradientn(colours = rev(cols))
+      } else{ 
+        p = p+ scale_color_gradientn(colours = cols)
+      }   
+    } else{
       p = p+ scale_color_gradient(low=low,high=high)
     }
-    p = p+ theme(panel.background=element_blank(),axis.line.x = element_line(colour = "black"),axis.line.y = element_line(colour = "black"))
-    if(!show.legend){
-      p = p + theme(legend.position="none") 
-    }
-    else{
-      if(is.factor(meta)){
-        p = p + guides(colour = guide_legend(override.aes = list(size=legend.size)))
-      }
-    }
-    p = p + coord_fixed(ratio=1)
-    return(p)
   }
+  p = p+ theme(panel.background=element_blank(),axis.line.x = element_line(colour = "black"),axis.line.y = element_line(colour = "black"))
+  if(!show.legend){
+    p = p + theme(legend.position="none") 
+  }
+  else{
+    if(is.factor(meta)){
+      p = p + guides(colour = guide_legend(override.aes = list(size=legend.size)))
+    }
+  }
+  p = p + coord_fixed(ratio=1)
+  return(p)
+}
 
 
 #' plot_RD_gene
