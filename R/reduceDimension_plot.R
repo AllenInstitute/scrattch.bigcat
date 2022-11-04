@@ -780,7 +780,7 @@ plot_3d_umap_anno <- function(umap.fn,
 #' @param rd.dat 
 #' @param meta 
 #' @param meta.col 
-#' @param show.legend 
+#' @param show.legend option to plot only foreground meta legend, legend for all meta, no legend ("fg","all","none"). Defaults to no legend.
 #' @param legend.size 
 #' @param fg.cells vector of id's to plot on foreground
 #' @param fg.cex foreground point size
@@ -788,6 +788,7 @@ plot_3d_umap_anno <- function(umap.fn,
 #' @param bg.cex
 #' @param bg.alpha
 #' @param bg.color default is null and will use the meta.col if color provided all background points will get that color
+#' @param rel.legend.width is fraction of plot width. Need to adjust in case of large legends
 #' 
 #' @return
 #' @export
@@ -799,7 +800,7 @@ plot_3d_umap_anno <- function(umap.fn,
 plot_RD_highlight <- function(rd.dat, 
                               meta, 
                               meta.col,
-                              show.legend=TRUE, 
+                              show.legend=c("fg","all","none"), 
                               legend.size=5,
                               theme.void = TRUE,
                               fg.cells = rownames(rd.dat),
@@ -807,7 +808,9 @@ plot_RD_highlight <- function(rd.dat,
                               fg.alpha = 0.7,
                               bg.cex = 0.15,  
                               bg.alpha = 0.25,
-                              bg.color=NULL ) {
+                              bg.color=NULL,
+                              rel.legend.width = 0.15 
+                                    ) {
   
   rd.dat = as.data.frame(rd.dat)
   colnames(rd.dat)[1:2] = c("Dim1","Dim2")  
@@ -846,7 +849,7 @@ plot_RD_highlight <- function(rd.dat,
       alpha= plot.df$alpha.val,
       shape= 19) +
     scale_colour_manual(values=plot.col,
-                        name=NULL)
+                        name=NULL) 
   
   if(isTRUE(theme.void)){
     g = g + theme_void()
@@ -856,19 +859,49 @@ plot_RD_highlight <- function(rd.dat,
                  axis.line.y = element_line(colour = "black"))
   }
   
+  g = g + coord_fixed(ratio=1) +
+    theme(legend.position="none") 
   
-  if(show.legend == FALSE){
-    g = g + theme(legend.gosition="none") 
-  }  else{
-    g = g + guides(colour = guide_legend(override.aes = list(size=legend.size)))
+  
+  if(show.legend == "fg"){
+    
+    leg.col <- plot.col[names(plot.col) %in% fg.df$meta]
+    leg.plot <- ggplot(fg.df, aes(Dim1, Dim2, colour=droplevels(meta))) + 
+      geom_point(#colour=plot.df$color, 
+        size = fg.df$cex, 
+        alpha= fg.df$alpha.val,
+        shape= 19) +
+      scale_colour_manual(values=leg.col,
+                          name=NULL)
+    leg.plot = leg.plot + guides(colour = guide_legend(override.aes = list(size=legend.size)))
+    legend <- cowplot::get_legend(leg.plot)
+    
+    g = cowplot::plot_grid(g, legend, ncol =2,rel_widths = c(1,rel.legend.width),greedy = F)
+    
+  } else if(show.legend == "all"){
+    
+    leg.plot <-  ggplot(plot.df, aes(Dim1, Dim2, colour=meta)) + 
+      geom_point(#colour=plot.df$color, 
+        size = plot.df$cex, 
+        alpha= plot.df$alpha.val,
+        shape= 19) +
+      scale_colour_manual(values=plot.col,
+                          name=NULL) 
+    leg.plot = leg.plot + guides(colour = guide_legend(override.aes = list(size=legend.size)))
+    legend <- cowplot::get_legend(leg.plot)
+    
+    g = cowplot::plot_grid(g, legend, ncol =2,rel_widths = c(1,rel.legend.width),greedy = F)
+    
+    
+  }  
+  else{
+    g = g + theme(legend.position="none") 
   }
   
-  g = g + coord_fixed(ratio=1)
   
   return(g)
   
 }
-
 
 
 
