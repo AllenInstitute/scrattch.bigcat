@@ -148,19 +148,25 @@ plot_RD_cl <- function(rd.dat, cl, cl.color=NULL, cl.label=NULL,cex=0.15, fn.siz
 #' @param legend.size 
 #' @param alpha.val 
 #' @param palette default it 2 color blue-red but can be defined using low and high params. Preset options include c("comet","greymagma","ylgnbu", "spectral", "turbo" )
-#'
+#' @param raster whether to rasterize the scatterplot. Default=F
+#' 
+#' 
 #' @return
 #' @export
 #'
 #' @examples
-plot_RD_meta <- function(rd.dat, meta, meta.col=NULL,show.legend=TRUE, cex=0.15, legend.size=5,alpha.val=1,
-                         palette = NULL, reverse = FALSE, low="blue",high="red")
+plot_RD_meta <- function(rd.dat, meta, meta.col=NULL,show.legend=TRUE, cex=0.15, legend.size=5,alpha.val=1, palette = NULL, reverse = FALSE, low="blue",high="red", raster=F)
 {
   rd.dat = as.data.frame(rd.dat)
   colnames(rd.dat)[1:2] = c("Dim1","Dim2")
   library(ggplot2)
   rd.dat$meta = meta
-  p=ggplot(rd.dat, aes(Dim1, Dim2)) + geom_point(aes(color=meta),size=cex)
+  p=ggplot(rd.dat, aes(Dim1, Dim2)) 
+  if(isTrue(raster)){
+    p = p + ggrastr::rasterise(geom_point(aes(color=meta),size=cex))
+  } else{ 
+    p = p + geom_point(aes(color=meta),size=cex)
+    }
   if(is.factor(meta)){
     rd.dat = droplevels(rd.dat)
     if(is.null(meta.col)){
@@ -225,7 +231,7 @@ plot_RD_meta <- function(rd.dat, meta, meta.col=NULL,show.legend=TRUE, cex=0.15,
 #' @export
 #'
 #' @examples
-plot_RD_gene <- function(rd.dat, norm.dat, genes, cex=0.15)
+plot_RD_gene <- function(rd.dat, norm.dat, genes, cex=0.15, raster=F)
   {
     library(ggplot2)
     plots=list()
@@ -233,7 +239,12 @@ plot_RD_gene <- function(rd.dat, norm.dat, genes, cex=0.15)
     colnames(rd.dat)[1:2] = c("Dim1","Dim2")
     for(g in genes){
       rd.dat$expr = norm.dat[g,row.names(rd.dat)]
-      p=ggplot(rd.dat, aes(Dim1, Dim2)) + geom_point(aes(color=expr),size=cex)
+      p=ggplot(rd.dat, aes(Dim1, Dim2)) 
+      if(isTrue(raster)){
+        p = p + ggrastr::rasterise(geom_point(aes(color=expr),size=cex))
+      } else{ 
+        p = p + geom_point(aes(color=expr),size=cex)
+      }
       p = p+ scale_color_gradient(low="gray80",high="red") 
       p = p + theme_void() + theme(legend.position="none")
       p = p + coord_fixed(ratio=1)
@@ -824,7 +835,8 @@ plot_RD_highlight <- function(rd.dat,
                               bg.cex = 0.15,  
                               bg.alpha = 0.25,
                               bg.color=NULL,
-                              rel.legend.width = 0.15 
+                              rel.legend.width = 0.15 ,
+                              raster=F
                                     ) {
   
   rd.dat = as.data.frame(rd.dat)
@@ -858,13 +870,20 @@ plot_RD_highlight <- function(rd.dat,
   plot.col <- unique(plot.df[,c("color", "meta")])
   plot.col <- setNames(plot.col$color, plot.col$meta)
   
-  g = ggplot(plot.df, aes(Dim1, Dim2, colour=meta)) + 
-    geom_point(#colour=plot.df$color, 
+  g = ggplot(plot.df, aes(Dim1, Dim2, colour=meta))
+  if(isTrue(raster)){
+    g = g + ggrastr::rasterise(geom_point(#colour=plot.df$color, 
       size = plot.df$cex, 
       alpha= plot.df$alpha.val,
-      shape= 19) +
-    scale_colour_manual(values=plot.col,
-                        name=NULL) 
+      shape= 19))
+  } else{ 
+    g = g +    geom_point(#colour=plot.df$color, 
+      size = plot.df$cex, 
+      alpha= plot.df$alpha.val,
+      shape= 19)
+  }
+  g = g + scale_colour_manual(values=plot.col,
+                              name=NULL) 
   
   if(isTRUE(theme.void)){
     g = g + theme_void()
