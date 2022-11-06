@@ -49,7 +49,7 @@ get_RD_cl_center <- function(rd.dat, cl)
 #' @export
 #'
 #' @examples
-plot_RD_cl <- function(rd.dat, cl, cl.color=NULL, cl.label=NULL,cex=0.15, fn.size =2, alpha.val=NULL,show.legend=FALSE, legend.size=2, label.center=TRUE, bg="blank",fn.color="black",no.shape=TRUE,ncol=4,shift.x=0, shift.y=0, raster=F)
+plot_RD_cl <- function(rd.dat, cl, cl.color=NULL, cl.label=NULL,cex=0.15, fn.size =2, alpha.val=NULL,show.legend=FALSE, legend.size=2, label.center=TRUE, bg="blank",fn.color="black",no.shape=TRUE,ncol=4,shift.x=0, shift.y=0, raster=F, dpi=300)
 {
   x=unique(cl)
   if(is.null(cl.label)){
@@ -69,14 +69,14 @@ plot_RD_cl <- function(rd.dat, cl, cl.color=NULL, cl.label=NULL,cex=0.15, fn.siz
     shape = setNames(1:length(levels(rd.dat$cl)) %% 20 + 1,levels(rd.dat$cl))
     if(length(cex)==1){
       if(isTRUE(raster)){
-        g= g +  ggrastr::rasterise(geom_point(aes(color=cl,shape=cl),size=cex))
+        g= g +  ggrastr::rasterise(geom_point(aes(color=cl,shape=cl),size=cex), dpi=dpi)
       } else{
         g=g + geom_point(aes(color=cl,shape=cl),size=cex)
       }
     }
     else{
       if(isTRUE(raster)){
-        g= g +  ggrastr::rasterise(geom_point(aes(color=cl,shape=cl, size=cl))) 
+        g= g +  ggrastr::rasterise(geom_point(aes(color=cl,shape=cl, size=cl)), dpi=dpi) 
       } else{
         g= g + geom_point(aes(color=cl,shape=cl, size=cl))
       }
@@ -87,14 +87,14 @@ plot_RD_cl <- function(rd.dat, cl, cl.color=NULL, cl.label=NULL,cex=0.15, fn.siz
   else{
     if(length(cex)==1){
       if(isTRUE(raster)){
-        g= g +  ggrastr::rasterise(geom_point(aes(color=cl),size=cex))
+        g= g +  ggrastr::rasterise(geom_point(aes(color=cl),size=cex), dpi=dpi)
       } else{
         g= g + geom_point(aes(color=cl),size=cex)
       }
     }
     else{
       if(isTRUE(raster)){ 
-        g= g +  ggrastr::rasterise(geom_point(aes(color=cl, size=cl)))
+        g= g +  ggrastr::rasterise(geom_point(aes(color=cl, size=cl)), dpi=dpi)
       } else{ 
         g= g + geom_point(aes(color=cl, size=cl))
       }
@@ -155,7 +155,7 @@ plot_RD_cl <- function(rd.dat, cl, cl.color=NULL, cl.label=NULL,cex=0.15, fn.siz
 #' @export
 #'
 #' @examples
-plot_RD_meta <- function(rd.dat, meta, meta.col=NULL,show.legend=TRUE, cex=0.15, legend.size=5,alpha.val=1, palette = NULL, reverse = FALSE, low="blue",high="red", raster=F)
+plot_RD_meta <- function(rd.dat, meta, meta.col=NULL,show.legend=TRUE, cex=0.15, legend.size=5,alpha.val=1, palette = NULL, reverse = FALSE, low="blue",high="red", raster=F, dpi=300)
 {
   rd.dat = as.data.frame(rd.dat)
   colnames(rd.dat)[1:2] = c("Dim1","Dim2")
@@ -163,7 +163,7 @@ plot_RD_meta <- function(rd.dat, meta, meta.col=NULL,show.legend=TRUE, cex=0.15,
   rd.dat$meta = meta
   p=ggplot(rd.dat, aes(Dim1, Dim2)) 
   if(isTrue(raster)){
-    p = p + ggrastr::rasterise(geom_point(aes(color=meta),size=cex))
+    p = p + ggrastr::rasterise(geom_point(aes(color=meta),size=cex), dpi=dpi)
   } else{ 
     p = p + geom_point(aes(color=meta),size=cex)
     }
@@ -231,7 +231,7 @@ plot_RD_meta <- function(rd.dat, meta, meta.col=NULL,show.legend=TRUE, cex=0.15,
 #' @export
 #'
 #' @examples
-plot_RD_gene <- function(rd.dat, norm.dat, genes, cex=0.15, raster=F)
+plot_RD_gene <- function(rd.dat, norm.dat, genes, cex=0.15, raster=F, dpi=300)
   {
     library(ggplot2)
     plots=list()
@@ -241,7 +241,7 @@ plot_RD_gene <- function(rd.dat, norm.dat, genes, cex=0.15, raster=F)
       rd.dat$expr = norm.dat[g,row.names(rd.dat)]
       p=ggplot(rd.dat, aes(Dim1, Dim2)) 
       if(isTrue(raster)){
-        p = p + ggrastr::rasterise(geom_point(aes(color=expr),size=cex))
+        p = p + ggrastr::rasterise(geom_point(aes(color=expr),size=cex), dpi=dpi)
       } else{ 
         p = p + geom_point(aes(color=expr),size=cex)
       }
@@ -836,7 +836,7 @@ plot_RD_highlight <- function(rd.dat,
                               bg.alpha = 0.25,
                               bg.color=NULL,
                               rel.legend.width = 0.15 ,
-                              raster=F
+                              raster=F, dpi=300
                                     ) {
   
   rd.dat = as.data.frame(rd.dat)
@@ -875,7 +875,7 @@ plot_RD_highlight <- function(rd.dat,
     g = g + ggrastr::rasterise(geom_point(#colour=plot.df$color, 
       size = plot.df$cex, 
       alpha= plot.df$alpha.val,
-      shape= 19))
+      shape= 19), dpi=dpi)
   } else{ 
     g = g +    geom_point(#colour=plot.df$color, 
       size = plot.df$cex, 
