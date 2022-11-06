@@ -43,81 +43,96 @@ get_RD_cl_center <- function(rd.dat, cl)
 #' @param label.center 
 #' @param bg 
 #' @param fn.color 
+#' @param raster whether to rasterize the scatterplot. Default=F
 #'
 #' @return
 #' @export
 #'
 #' @examples
-plot_RD_cl <- function(rd.dat, cl, cl.color=NULL, cl.label=NULL,cex=0.15, fn.size =2, alpha.val=NULL,show.legend=FALSE, legend.size=2, label.center=TRUE, bg="blank",fn.color="black",no.shape=TRUE,ncol=4,shift.x=0, shift.y=0)
-  {
-    x=unique(cl)
-    if(is.null(cl.label)){
-      cl.label = setNames(x,x)
-    }
-    if(is.null(cl.color)){
-      cl.color  = setNames(varibow(length(x)),x)
-    }
-    rd.dat=as.data.frame(rd.dat)
-    colnames(rd.dat) = paste0("Dim", 1:ncol(rd.dat))
-    rd.dat$cl = factor(cl[row.names(rd.dat)])
-    if(label.center){
-      cl.center = get_RD_cl_center(rd.dat, cl)
-    }
-    g=ggplot(rd.dat, aes(Dim1, Dim2))
-    if(!no.shape){
-      shape = setNames(1:length(levels(rd.dat$cl)) %% 20 + 1,levels(rd.dat$cl))
-      if(length(cex)==1){
+plot_RD_cl <- function(rd.dat, cl, cl.color=NULL, cl.label=NULL,cex=0.15, fn.size =2, alpha.val=NULL,show.legend=FALSE, legend.size=2, label.center=TRUE, bg="blank",fn.color="black",no.shape=TRUE,ncol=4,shift.x=0, shift.y=0, raster=F)
+{
+  x=unique(cl)
+  if(is.null(cl.label)){
+    cl.label = setNames(x,x)
+  }
+  if(is.null(cl.color)){
+    cl.color  = setNames(varibow(length(x)),x)
+  }
+  rd.dat=as.data.frame(rd.dat)
+  colnames(rd.dat) = paste0("Dim", 1:ncol(rd.dat))
+  rd.dat$cl = factor(cl[row.names(rd.dat)])
+  if(label.center){
+    cl.center = get_RD_cl_center(rd.dat, cl)
+  }
+  g=ggplot(rd.dat, aes(Dim1, Dim2))
+  if(!no.shape){
+    shape = setNames(1:length(levels(rd.dat$cl)) %% 20 + 1,levels(rd.dat$cl))
+    if(length(cex)==1){
+      if(isTRUE(raster)){
+        g= g +  ggrastr::rasterise(geom_point(aes(color=cl,shape=cl),size=cex))
+      } else{
         g=g + geom_point(aes(color=cl,shape=cl),size=cex)
       }
-      else{
-        g= g + geom_point(aes(color=cl,shape=cl, size=cl))
-        g= g + scale_size_manual(values=cex[levels(rd.dat$cl)])
-      }
-      g = g+ scale_shape_manual(values=as.vector(shape[levels(rd.dat$cl)]))      
     }
     else{
-      if(length(cex)==1){
+      if(isTRUE(raster)){
+        g= g +  ggrastr::rasterise(geom_point(aes(color=cl,shape=cl, size=cl))) 
+      } else{
+        g= g + geom_point(aes(color=cl,shape=cl, size=cl))
+      }
+      g= g + scale_size_manual(values=cex[levels(rd.dat$cl)])
+    }
+    g = g+ scale_shape_manual(values=as.vector(shape[levels(rd.dat$cl)]))      
+  }
+  else{
+    if(length(cex)==1){
+      if(isTRUE(raster)){
+        g= g +  ggrastr::rasterise(geom_point(aes(color=cl),size=cex))
+      } else{
         g= g + geom_point(aes(color=cl),size=cex)
       }
-      else{
+    }
+    else{
+      if(isTRUE(raster)){ 
+        g= g +  ggrastr::rasterise(geom_point(aes(color=cl, size=cl)))
+      } else{ 
         g= g + geom_point(aes(color=cl, size=cl))
-        g= g + scale_size_manual(values=cex[levels(rd.dat$cl)])
       }
+      g= g + scale_size_manual(values=cex[levels(rd.dat$cl)])
     }
-    if(!is.null(alpha.val)){
-      col = alpha(as.vector(cl.color[levels(rd.dat$cl)]),alpha.val)
-    }
-    else{
-      col = as.vector(cl.color[levels(rd.dat$cl)])
-    }
-    g = g+ scale_color_manual(values=col,labels=cl.label[levels(rd.dat$cl)])
-    if(label.center){
-      g = g + geom_point(data=as.data.frame(cl.center), aes(x=x, y=y,alpha=0.5), size=cex)
-      g = g +  annotate("text", label=cl.label[row.names(cl.center)], x=cl.center[,1]+shift.x, y=cl.center[,2] + shift.y,size=fn.size,color=fn.color,hjust=0)    
-    }    
-    if(bg=="blank"){
-      g = g + theme_void()
-      #g = g + theme(panel.background=element_blank())
-      #g = g + theme(axis.line.x = element_line(colour = "black"),axis.line.y = element_line(colour = "black"))
-    }
-    else{
-      g = g + theme(panel.background= element_rect(fill=bg, color=NA), panel.border = element_blank(),panel.grid.major = element_blank(), panel.grid.minor= element_blank())
-    }
-    if(show.legend){      
-      if(no.shape){
-         g = g +  guides(colour = guide_legend(override.aes = list(size = legend.size),ncol=ncol))
-      }
-      else{
-        g = g +  guides(colour = guide_legend(override.aes = list(shape = shape[levels(rd.dat$cl)],size = legend.size)),ncol=ncol)
-      }
-      g = g + theme(legend.position="right")
-    }
-    else{
-      g = g + theme(legend.position="none")
-    }
-    g = g + coord_fixed(ratio=1)
-    return(g)
   }
+  if(!is.null(alpha.val)){
+    col = alpha(as.vector(cl.color[levels(rd.dat$cl)]),alpha.val)
+  }
+  else{
+    col = as.vector(cl.color[levels(rd.dat$cl)])
+  }
+  g = g+ scale_color_manual(values=col,labels=cl.label[levels(rd.dat$cl)])
+  if(label.center){
+    g = g + geom_point(data=as.data.frame(cl.center), aes(x=x, y=y,alpha=0.5), size=cex)
+    g = g +  annotate("text", label=cl.label[row.names(cl.center)], x=cl.center[,1]+shift.x, y=cl.center[,2] + shift.y,size=fn.size,color=fn.color,hjust=0)    
+  }    
+  if(bg=="blank"){
+    g = g + theme_void()
+  }
+  else{
+    g = g + theme(panel.background= element_rect(fill=bg, color=NA), panel.border = element_blank(),panel.grid.major = element_blank(), panel.grid.minor= element_blank())
+  }
+  if(show.legend){      
+    if(no.shape){
+      g = g +  guides(colour = guide_legend(override.aes = list(size = legend.size),ncol=ncol))
+    }
+    else{
+      g = g +  guides(colour = guide_legend(override.aes = list(shape = shape[levels(rd.dat$cl)],size = legend.size)),ncol=ncol)
+    }
+    g = g + theme(legend.position="right")
+  }
+  else{
+    g = g + theme(legend.position="none")
+  }
+  g = g + coord_fixed(ratio=1)
+  return(g)
+}
 
 
 
