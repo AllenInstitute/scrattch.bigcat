@@ -808,11 +808,7 @@ plot_3d_umap_anno <- function(umap.fn,
 #' @param rd.dat 
 #' @param meta 
 #' @param meta.col 
-<<<<<<< HEAD
-#' @param show.legend 
-=======
 #' @param show.legend option to plot only foreground meta legend, legend for all meta, no legend ("fg","all","none"). Defaults to no legend.
->>>>>>> 378a4760fd189859e6a3894ba8b3409b8cc36f1f
 #' @param legend.size 
 #' @param fg.cells vector of id's to plot on foreground
 #' @param fg.cex foreground point size
@@ -820,10 +816,7 @@ plot_3d_umap_anno <- function(umap.fn,
 #' @param bg.cex
 #' @param bg.alpha
 #' @param bg.color default is null and will use the meta.col if color provided all background points will get that color
-<<<<<<< HEAD
-=======
 #' @param rel.legend.width is fraction of plot width. Need to adjust in case of large legends
->>>>>>> 378a4760fd189859e6a3894ba8b3409b8cc36f1f
 #' 
 #' @return
 #' @export
@@ -835,11 +828,7 @@ plot_3d_umap_anno <- function(umap.fn,
 plot_RD_highlight <- function(rd.dat, 
                               meta, 
                               meta.col,
-<<<<<<< HEAD
-                              show.legend=TRUE, 
-=======
                               show.legend=c("fg","all","none"), 
->>>>>>> 378a4760fd189859e6a3894ba8b3409b8cc36f1f
                               legend.size=5,
                               theme.void = TRUE,
                               fg.cells = rownames(rd.dat),
@@ -847,15 +836,10 @@ plot_RD_highlight <- function(rd.dat,
                               fg.alpha = 0.7,
                               bg.cex = 0.15,  
                               bg.alpha = 0.25,
-<<<<<<< HEAD
-                              bg.color=NULL ) {
-=======
                               bg.color=NULL,
                               rel.legend.width = 0.15 ,
-                              raster=F, dpi=300
-                                    ) {
->>>>>>> 378a4760fd189859e6a3894ba8b3409b8cc36f1f
-  
+                              raster=F, dpi=300)
+{ 
   rd.dat = as.data.frame(rd.dat)
   colnames(rd.dat)[1:2] = c("Dim1","Dim2")  
   rd.dat$meta <- meta[match(rownames(rd.dat), names(meta))]
@@ -887,15 +871,6 @@ plot_RD_highlight <- function(rd.dat,
   plot.col <- unique(plot.df[,c("color", "meta")])
   plot.col <- setNames(plot.col$color, plot.col$meta)
   
-<<<<<<< HEAD
-  g = ggplot(plot.df, aes(Dim1, Dim2, colour=meta)) + 
-    geom_point(#colour=plot.df$color, 
-      size = plot.df$cex, 
-      alpha= plot.df$alpha.val,
-      shape= 19) +
-    scale_colour_manual(values=plot.col,
-                        name=NULL)
-=======
   g = ggplot(plot.df, aes(Dim1, Dim2, colour=meta))
   if(isTrue(raster)){
     g = g + ggrastr::rasterise(geom_point(#colour=plot.df$color, 
@@ -910,8 +885,6 @@ plot_RD_highlight <- function(rd.dat,
   }
   g = g + scale_colour_manual(values=plot.col,
                               name=NULL) 
->>>>>>> 378a4760fd189859e6a3894ba8b3409b8cc36f1f
-  
   if(isTRUE(theme.void)){
     g = g + theme_void()
   } else {
@@ -920,16 +893,6 @@ plot_RD_highlight <- function(rd.dat,
                  axis.line.y = element_line(colour = "black"))
   }
   
-<<<<<<< HEAD
-  
-  if(show.legend == FALSE){
-    g = g + theme(legend.position="none") 
-  }  else{
-    g = g + guides(colour = guide_legend(override.aes = list(size=legend.size)))
-  }
-  
-  g = g + coord_fixed(ratio=1)
-=======
   g = g + coord_fixed(ratio=1) +
     theme(legend.position="none") 
   
@@ -959,25 +922,13 @@ plot_RD_highlight <- function(rd.dat,
       scale_colour_manual(values=plot.col,
                           name=NULL) 
     leg.plot = leg.plot + guides(colour = guide_legend(override.aes = list(size=legend.size)))
-    legend <- cowplot::get_legend(leg.plot)
-    
-    g = cowplot::plot_grid(g, legend, ncol =2,rel_widths = c(1,rel.legend.width),greedy = F)
-    
-    
+    legend <- cowplot::get_legend(leg.plot)    
+    g = cowplot::plot_grid(g, legend, ncol =2,rel_widths = c(1,rel.legend.width),greedy = F) 
   }  
   else{
     g = g + theme(legend.position="none") 
   }
-  
->>>>>>> 378a4760fd189859e6a3894ba8b3409b8cc36f1f
-  
-  return(g)
-  
+  return(g)  
 }
 
 
-
-<<<<<<< HEAD
-
-=======
->>>>>>> 378a4760fd189859e6a3894ba8b3409b8cc36f1f
