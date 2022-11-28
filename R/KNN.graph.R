@@ -71,6 +71,7 @@ get_knn_graph <- function(rd.dat, cl, ref.cells=row.names(rd.dat),method="Annoy.
 #' @param highlight_color color used to highlight node
 #' @param highlight_width stroke width used to highlight node
 #' @param highlight_labsize label size for highlighted nodes
+#' @param fg.edges which edges to highlight selected by node using the cl value which is not necessarily the node label
 #'
 #'
 #' @example_data:
@@ -100,7 +101,10 @@ plot_constellation <- function(knn.cl.df,
                                highlight_nodes = NULL,
                                highlight_color = "red",
                                highlight_width = 1,
-                               highlight_labsize=10 ) { 
+                               highlight_labsize=10 ,
+                               fg.edges = NULL, 
+                               fg.alpha = 0.4,
+                               bg.alpha = 0.1) { 
   
   library(gridExtra)
   library(sna)
@@ -429,13 +433,23 @@ plot_constellation <- function(knn.cl.df,
   p.edges <- ggplot(poly.Edges, aes(group=Group))
   p.edges <- p.edges +geom_polygon(aes(x=x, y=y), alpha=0.2) + theme_void()
   #p.edges
+  library("data.table")  
+  
+  if(!is.null(fg.edges)){
+    poly.Edges$alpha <- bg.alpha
+    
+    col.idx <- grep(pattern = paste(fg.edges, collapse="|"),
+                    x = poly.Edges$Group)
+    poly.Edges[co.idx,"alpha"] <- fg.alpha
+  } else{
+    poly.Edges$alpha <- fg.alpha
+  }
   
   if (!is.null(plot.hull)) {
     #### plot all layers
     plot.all <-  ggplot()+
       geom_polygon(data=poly.Edges, 
-                   alpha=0.2, 
-                   aes(x=x, y=y, group=Group))+ 
+                   aes(x=x, y=y, group=Group, alpha=alpha))+ 
       geom_point(data=nodes,
                  alpha=0.8, 
                  shape=19,
@@ -447,6 +461,7 @@ plot_constellation <- function(knn.cl.df,
                       max_size=max_size,
                       breaks = c(100,1000,10000,100000)) +
       scale_color_identity()  + 
+      scale_alpha(range = c(bg.alpha, fg.alpha))  +
       theme_void()+ 
       geom_mark_hull(data=nodes,
                      concavity = 8,
@@ -478,8 +493,7 @@ plot_constellation <- function(knn.cl.df,
     #### plot all layers
     plot.all <-  ggplot()+
       geom_polygon(data=poly.Edges, 
-                   alpha=0.2, 
-                   aes(x=x, y=y, group=Group))+ 
+                   aes(x=x, y=y, group=Group, alpha=alpha))+
       geom_point(data=nodes,
                  alpha=0.8, 
                  shape=19,
@@ -490,7 +504,9 @@ plot_constellation <- function(knn.cl.df,
       scale_size_area(trans=node_trans,
                       max_size=max_size,
                       breaks = c(100,1000,10000,100000)) +
-      scale_color_identity()
+      scale_color_identity() +      
+      scale_alpha(range = c(bg.alpha, fg.alpha))  
+
     
     
     # only if highlighting subset of nodes
