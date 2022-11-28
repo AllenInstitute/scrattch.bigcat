@@ -132,45 +132,71 @@ plot_RD_cl <- function(rd.dat, cl, cl.color=NULL, cl.label=NULL,cex=0.15, fn.siz
 #' @param cex 
 #' @param legend.size 
 #' @param alpha.val 
+#' @param palette default it 2 color blue-red but can be defined using low and high params. Preset options include c("comet","greymagma","ylgnbu", "spectral", "turbo" )
 #'
 #' @return
 #' @export
 #'
 #' @examples
-plot_RD_meta <- function(rd.dat, meta, meta.col=NULL,show.legend=TRUE, cex=0.15, legend.size=5,alpha.val=1,low="blue",high="red")
-  {
-    rd.dat = as.data.frame(rd.dat)
-    colnames(rd.dat)[1:2] = c("Dim1","Dim2")
-    library(ggplot2)
-    rd.dat$meta = meta
-    p=ggplot(rd.dat, aes(Dim1, Dim2)) + geom_point(aes(color=meta),size=cex)
-    if(is.factor(meta)){
-      rd.dat = droplevels(rd.dat)
-      if(is.null(meta.col)){
-        if(length(levels(meta)) > 2){
-          meta.col = setNames(jet.colors(length(levels(meta))), levels(meta))
-        }
-        else{
-          meta.col = setNames(c("blue", "orange"), levels(meta))
-        }
-      }      
-      p = p+ scale_color_manual(values=alpha(as.vector(meta.col[levels(rd.dat$meta)]),alpha.val))
-    }
-    else{
+plot_RD_meta <- function(rd.dat, meta, meta.col=NULL,show.legend=TRUE, cex=0.15, legend.size=5,alpha.val=1,
+                         palette = NULL, reverse = FALSE, low="blue",high="red")
+{
+  rd.dat = as.data.frame(rd.dat)
+  colnames(rd.dat)[1:2] = c("Dim1","Dim2")
+  library(ggplot2)
+  rd.dat$meta = meta
+  p=ggplot(rd.dat, aes(Dim1, Dim2)) + geom_point(aes(color=meta),size=cex)
+  if(is.factor(meta)){
+    rd.dat = droplevels(rd.dat)
+    if(is.null(meta.col)){
+      if(length(levels(meta)) > 2){
+        meta.col = setNames(jet.colors(length(levels(meta))), levels(meta))
+      }
+      else{
+        meta.col = setNames(c("blue", "orange"), levels(meta))
+      }
+    }      
+    p = p+ scale_color_manual(values=alpha(as.vector(meta.col[levels(rd.dat$meta)]),alpha.val))
+  }
+  else{
+    if(!is.null(palette)){
+      
+      if(palette == "comet"){
+        cols <- c("#E6E7E8", "#3A97FF", "#8816A7", "black")
+        
+      } else if (palette == "greymagma" ){
+        cols <-  c("grey","#FB8861FF", "#B63679FF", "#51127CFF", "#000004FF")
+        
+      } else if (palette == "ylgnbu" ){
+        cols <-  c("#ffffd9","#c7e9b4","#41b6c4","#1d91c0","#225ea8","#081d58")
+        
+      } else if (palette == "spectral" ){
+        cols <-  c("D53E4F", "F46D43", "FDAE61", "FEE08B", "FFFFBF", "E6F598", "ABDDA4", "66C2A5", "3288BD")
+      }   else if (palette == "turbo" ){
+        cols <-  c("#7A0403","#D23105","#FB8022","#EDD03A","#A3FD3D","#1AE4B6","#4686FA","#466BE3","#30123B")
+      } else{ print("Error: palette unknown")}  
+      
+      if(isTRUE(reverse) ){
+        p = p+ scale_color_gradientn(colours = rev(cols))
+      } else{ 
+        p = p+ scale_color_gradientn(colours = cols)
+      }   
+    } else{
       p = p+ scale_color_gradient(low=low,high=high)
     }
-    p = p+ theme(panel.background=element_blank(),axis.line.x = element_line(colour = "black"),axis.line.y = element_line(colour = "black"))
-    if(!show.legend){
-      p = p + theme(legend.position="none") 
-    }
-    else{
-      if(is.factor(meta)){
-        p = p + guides(colour = guide_legend(override.aes = list(size=legend.size)))
-      }
-    }
-    p = p + coord_fixed(ratio=1)
-    return(p)
   }
+  p = p+ theme_void()
+  if(!show.legend){
+    p = p + theme(legend.position="none") 
+  }
+  else{
+    if(is.factor(meta)){
+      p = p + guides(colour = guide_legend(override.aes = list(size=legend.size)))
+    }
+  }  
+  p = p + coord_fixed(ratio=1)
+  return(p)
+}
 
 
 #' plot_RD_gene
@@ -216,7 +242,7 @@ plot_RD_gene <- function(rd.dat, norm.dat, genes, cex=0.15)
 #' @export
 #'
 #' @examples
-multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+multiplot <- function(..., plotlist=NULL, cols=1, layout=NULL,byrow=FALSE) {
     library(grid)
     # Make a list from the ... arguments and plotlist
     plots <- c(list(...), plotlist)
@@ -230,7 +256,7 @@ multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
         # nrow: Number of rows needed, calculated from # of cols
         layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
                          ncol = cols, 
-                         nrow = ceiling(numPlots/cols))
+                         nrow = ceiling(numPlots/cols),byrow=byrow)
     }
     
     if (numPlots==1) {
@@ -745,4 +771,104 @@ plot_3d_umap_anno <- function(umap.fn,
                          fn = html.fn, 
                          dir=dest.d)
 }
+
+
+
+
+#' plot_RD_highlight
+#'
+#' @param rd.dat 
+#' @param meta 
+#' @param meta.col 
+#' @param show.legend 
+#' @param legend.size 
+#' @param fg.cells vector of id's to plot on foreground
+#' @param fg.cex foreground point size
+#' @param fg.alpha foreground alpha value
+#' @param bg.cex
+#' @param bg.alpha
+#' @param bg.color default is null and will use the meta.col if color provided all background points will get that color
+#' 
+#' @return
+#' @export
+#' @example
+#' 
+#' 
+
+
+plot_RD_highlight <- function(rd.dat, 
+                              meta, 
+                              meta.col,
+                              show.legend=TRUE, 
+                              legend.size=5,
+                              theme.void = TRUE,
+                              fg.cells = rownames(rd.dat),
+                              fg.cex = 0.3, 
+                              fg.alpha = 0.7,
+                              bg.cex = 0.15,  
+                              bg.alpha = 0.25,
+                              bg.color=NULL ) {
+  
+  rd.dat = as.data.frame(rd.dat)
+  colnames(rd.dat)[1:2] = c("Dim1","Dim2")  
+  rd.dat$meta <- meta[match(rownames(rd.dat), names(meta))]
+  
+  bg.df <- rd.dat[!(rownames(rd.dat) %in% fg.cells),]
+  
+  if(nrow(bg.df)>0) {
+    bg.df$alpha.val <- bg.alpha
+    bg.df$cex <- bg.cex
+    
+    if(!is.null(bg.color)){
+      bg.df$color <- bg.color
+    } else {
+      bg.df$color <- meta.col[match(bg.df$meta, names(meta.col))]
+    }
+  }
+  
+  
+  fg.df <- rd.dat[rownames(rd.dat) %in% fg.cells,]
+  
+  if(nrow(fg.df)>0){
+    fg.df$alpha.val <- fg.alpha
+    fg.df$cex <- fg.cex
+    fg.df$color <- meta.col[match(fg.df$meta, names(meta.col))]
+  }
+  
+  plot.df <- rbind(bg.df, fg.df)
+  
+  plot.col <- unique(plot.df[,c("color", "meta")])
+  plot.col <- setNames(plot.col$color, plot.col$meta)
+  
+  g = ggplot(plot.df, aes(Dim1, Dim2, colour=meta)) + 
+    geom_point(#colour=plot.df$color, 
+      size = plot.df$cex, 
+      alpha= plot.df$alpha.val,
+      shape= 19) +
+    scale_colour_manual(values=plot.col,
+                        name=NULL)
+  
+  if(isTRUE(theme.void)){
+    g = g + theme_void()
+  } else {
+    g = g+ theme(panel.background=element_blank(),
+                 axis.line.x = element_line(colour = "black"),
+                 axis.line.y = element_line(colour = "black"))
+  }
+  
+  
+  if(show.legend == FALSE){
+    g = g + theme(legend.position="none") 
+  }  else{
+    g = g + guides(colour = guide_legend(override.aes = list(size=legend.size)))
+  }
+  
+  g = g + coord_fixed(ratio=1)
+  
+  return(g)
+  
+}
+
+
+
 
