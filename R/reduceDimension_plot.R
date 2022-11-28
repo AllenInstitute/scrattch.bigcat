@@ -43,81 +43,96 @@ get_RD_cl_center <- function(rd.dat, cl)
 #' @param label.center 
 #' @param bg 
 #' @param fn.color 
+#' @param raster whether to rasterize the scatterplot. Default=F
 #'
 #' @return
 #' @export
 #'
 #' @examples
-plot_RD_cl <- function(rd.dat, cl, cl.color=NULL, cl.label=NULL,cex=0.15, fn.size =2, alpha.val=NULL,show.legend=FALSE, legend.size=2, label.center=TRUE, bg="blank",fn.color="black",no.shape=TRUE,ncol=4,shift.x=0, shift.y=0)
-  {
-    x=unique(cl)
-    if(is.null(cl.label)){
-      cl.label = setNames(x,x)
-    }
-    if(is.null(cl.color)){
-      cl.color  = setNames(varibow(length(x)),x)
-    }
-    rd.dat=as.data.frame(rd.dat)
-    colnames(rd.dat) = paste0("Dim", 1:ncol(rd.dat))
-    rd.dat$cl = factor(cl[row.names(rd.dat)])
-    if(label.center){
-      cl.center = get_RD_cl_center(rd.dat, cl)
-    }
-    g=ggplot(rd.dat, aes(Dim1, Dim2))
-    if(!no.shape){
-      shape = setNames(1:length(levels(rd.dat$cl)) %% 20 + 1,levels(rd.dat$cl))
-      if(length(cex)==1){
+plot_RD_cl <- function(rd.dat, cl, cl.color=NULL, cl.label=NULL,cex=0.15, fn.size =2, alpha.val=NULL,show.legend=FALSE, legend.size=2, label.center=TRUE, bg="blank",fn.color="black",no.shape=TRUE,ncol=4,shift.x=0, shift.y=0, raster=F, dpi=300)
+{
+  x=unique(cl)
+  if(is.null(cl.label)){
+    cl.label = setNames(x,x)
+  }
+  if(is.null(cl.color)){
+    cl.color  = setNames(varibow(length(x)),x)
+  }
+  rd.dat=as.data.frame(rd.dat)
+  colnames(rd.dat) = paste0("Dim", 1:ncol(rd.dat))
+  rd.dat$cl = factor(cl[row.names(rd.dat)])
+  if(label.center){
+    cl.center = get_RD_cl_center(rd.dat, cl)
+  }
+  g=ggplot(rd.dat, aes(Dim1, Dim2))
+  if(!no.shape){
+    shape = setNames(1:length(levels(rd.dat$cl)) %% 20 + 1,levels(rd.dat$cl))
+    if(length(cex)==1){
+      if(isTRUE(raster)){
+        g= g +  ggrastr::rasterise(geom_point(aes(color=cl,shape=cl),size=cex), dpi=dpi)
+      } else{
         g=g + geom_point(aes(color=cl,shape=cl),size=cex)
       }
-      else{
-        g= g + geom_point(aes(color=cl,shape=cl, size=cl))
-        g= g + scale_size_manual(values=cex[levels(rd.dat$cl)])
-      }
-      g = g+ scale_shape_manual(values=as.vector(shape[levels(rd.dat$cl)]))      
     }
     else{
-      if(length(cex)==1){
+      if(isTRUE(raster)){
+        g= g +  ggrastr::rasterise(geom_point(aes(color=cl,shape=cl, size=cl)), dpi=dpi) 
+      } else{
+        g= g + geom_point(aes(color=cl,shape=cl, size=cl))
+      }
+      g= g + scale_size_manual(values=cex[levels(rd.dat$cl)])
+    }
+    g = g+ scale_shape_manual(values=as.vector(shape[levels(rd.dat$cl)]))      
+  }
+  else{
+    if(length(cex)==1){
+      if(isTRUE(raster)){
+        g= g +  ggrastr::rasterise(geom_point(aes(color=cl),size=cex), dpi=dpi)
+      } else{
         g= g + geom_point(aes(color=cl),size=cex)
       }
-      else{
+    }
+    else{
+      if(isTRUE(raster)){ 
+        g= g +  ggrastr::rasterise(geom_point(aes(color=cl, size=cl)), dpi=dpi)
+      } else{ 
         g= g + geom_point(aes(color=cl, size=cl))
-        g= g + scale_size_manual(values=cex[levels(rd.dat$cl)])
       }
+      g= g + scale_size_manual(values=cex[levels(rd.dat$cl)])
     }
-    if(!is.null(alpha.val)){
-      col = alpha(as.vector(cl.color[levels(rd.dat$cl)]),alpha.val)
-    }
-    else{
-      col = as.vector(cl.color[levels(rd.dat$cl)])
-    }
-    g = g+ scale_color_manual(values=col,labels=cl.label[levels(rd.dat$cl)])
-    if(label.center){
-      g = g + geom_point(data=as.data.frame(cl.center), aes(x=x, y=y,alpha=0.5), size=cex)
-      g = g +  annotate("text", label=cl.label[row.names(cl.center)], x=cl.center[,1]+shift.x, y=cl.center[,2] + shift.y,size=fn.size,color=fn.color,hjust=0)    
-    }    
-    if(bg=="blank"){
-      g = g + theme_void()
-      #g = g + theme(panel.background=element_blank())
-      #g = g + theme(axis.line.x = element_line(colour = "black"),axis.line.y = element_line(colour = "black"))
-    }
-    else{
-      g = g + theme(panel.background= element_rect(fill=bg, color=NA), panel.border = element_blank(),panel.grid.major = element_blank(), panel.grid.minor= element_blank())
-    }
-    if(show.legend){      
-      if(no.shape){
-         g = g +  guides(colour = guide_legend(override.aes = list(size = legend.size),ncol=ncol))
-      }
-      else{
-        g = g +  guides(colour = guide_legend(override.aes = list(shape = shape[levels(rd.dat$cl)],size = legend.size)),ncol=ncol)
-      }
-      g = g + theme(legend.position="right")
-    }
-    else{
-      g = g + theme(legend.position="none")
-    }
-    g = g + coord_fixed(ratio=1)
-    return(g)
   }
+  if(!is.null(alpha.val)){
+    col = alpha(as.vector(cl.color[levels(rd.dat$cl)]),alpha.val)
+  }
+  else{
+    col = as.vector(cl.color[levels(rd.dat$cl)])
+  }
+  g = g+ scale_color_manual(values=col,labels=cl.label[levels(rd.dat$cl)])
+  if(label.center){
+    g = g + geom_point(data=as.data.frame(cl.center), aes(x=x, y=y,alpha=0.5), size=cex)
+    g = g +  annotate("text", label=cl.label[row.names(cl.center)], x=cl.center[,1]+shift.x, y=cl.center[,2] + shift.y,size=fn.size,color=fn.color,hjust=0)    
+  }    
+  if(bg=="blank"){
+    g = g + theme_void()
+  }
+  else{
+    g = g + theme(panel.background= element_rect(fill=bg, color=NA), panel.border = element_blank(),panel.grid.major = element_blank(), panel.grid.minor= element_blank())
+  }
+  if(show.legend){      
+    if(no.shape){
+      g = g +  guides(colour = guide_legend(override.aes = list(size = legend.size),ncol=ncol))
+    }
+    else{
+      g = g +  guides(colour = guide_legend(override.aes = list(shape = shape[levels(rd.dat$cl)],size = legend.size)),ncol=ncol)
+    }
+    g = g + theme(legend.position="right")
+  }
+  else{
+    g = g + theme(legend.position="none")
+  }
+  g = g + coord_fixed(ratio=1)
+  return(g)
+}
 
 
 
@@ -134,18 +149,26 @@ plot_RD_cl <- function(rd.dat, cl, cl.color=NULL, cl.label=NULL,cex=0.15, fn.siz
 #' @param alpha.val 
 #' @param palette default it 2 color blue-red but can be defined using low and high params. Preset options include c("comet","greymagma","ylgnbu", "spectral", "turbo" )
 #'
+#' @param raster whether to rasterize the scatterplot. Default=F
+#' 
+#' 
 #' @return
 #' @export
 #'
 #' @examples
-plot_RD_meta <- function(rd.dat, meta, meta.col=NULL,show.legend=TRUE, cex=0.15, legend.size=5,alpha.val=1,
-                         palette = NULL, reverse = FALSE, low="blue",high="red")
+plot_RD_meta <- function(rd.dat, meta, meta.col=NULL,show.legend=TRUE, cex=0.15, legend.size=5,alpha.val=1, palette = NULL, reverse = FALSE, low="blue",high="red", raster=F, dpi=300)
 {
   rd.dat = as.data.frame(rd.dat)
   colnames(rd.dat)[1:2] = c("Dim1","Dim2")
   library(ggplot2)
   rd.dat$meta = meta
-  p=ggplot(rd.dat, aes(Dim1, Dim2)) + geom_point(aes(color=meta),size=cex)
+  p=ggplot(rd.dat, aes(Dim1, Dim2)) 
+  if(isTrue(raster)){
+    p = p + ggrastr::rasterise(geom_point(aes(color=meta),size=cex), dpi=dpi)
+  } else{ 
+    p = p + geom_point(aes(color=meta),size=cex)
+  }
+
   if(is.factor(meta)){
     rd.dat = droplevels(rd.dat)
     if(is.null(meta.col)){
@@ -193,7 +216,7 @@ plot_RD_meta <- function(rd.dat, meta, meta.col=NULL,show.legend=TRUE, cex=0.15,
     if(is.factor(meta)){
       p = p + guides(colour = guide_legend(override.aes = list(size=legend.size)))
     }
-  }  
+  }
   p = p + coord_fixed(ratio=1)
   return(p)
 }
@@ -210,7 +233,7 @@ plot_RD_meta <- function(rd.dat, meta, meta.col=NULL,show.legend=TRUE, cex=0.15,
 #' @export
 #'
 #' @examples
-plot_RD_gene <- function(rd.dat, norm.dat, genes, cex=0.15)
+plot_RD_gene <- function(rd.dat, norm.dat, genes, cex=0.15, raster=F, dpi=300)
   {
     library(ggplot2)
     plots=list()
@@ -218,7 +241,12 @@ plot_RD_gene <- function(rd.dat, norm.dat, genes, cex=0.15)
     colnames(rd.dat)[1:2] = c("Dim1","Dim2")
     for(g in genes){
       rd.dat$expr = norm.dat[g,row.names(rd.dat)]
-      p=ggplot(rd.dat, aes(Dim1, Dim2)) + geom_point(aes(color=expr),size=cex)
+      p=ggplot(rd.dat, aes(Dim1, Dim2)) 
+      if(isTrue(raster)){
+        p = p + ggrastr::rasterise(geom_point(aes(color=expr),size=cex), dpi=dpi)
+      } else{ 
+        p = p + geom_point(aes(color=expr),size=cex)
+      }
       p = p+ scale_color_gradient(low="gray80",high="red") 
       p = p + theme_void() + theme(legend.position="none")
       p = p + coord_fixed(ratio=1)
@@ -780,7 +808,11 @@ plot_3d_umap_anno <- function(umap.fn,
 #' @param rd.dat 
 #' @param meta 
 #' @param meta.col 
+<<<<<<< HEAD
 #' @param show.legend 
+=======
+#' @param show.legend option to plot only foreground meta legend, legend for all meta, no legend ("fg","all","none"). Defaults to no legend.
+>>>>>>> 378a4760fd189859e6a3894ba8b3409b8cc36f1f
 #' @param legend.size 
 #' @param fg.cells vector of id's to plot on foreground
 #' @param fg.cex foreground point size
@@ -788,6 +820,10 @@ plot_3d_umap_anno <- function(umap.fn,
 #' @param bg.cex
 #' @param bg.alpha
 #' @param bg.color default is null and will use the meta.col if color provided all background points will get that color
+<<<<<<< HEAD
+=======
+#' @param rel.legend.width is fraction of plot width. Need to adjust in case of large legends
+>>>>>>> 378a4760fd189859e6a3894ba8b3409b8cc36f1f
 #' 
 #' @return
 #' @export
@@ -799,7 +835,11 @@ plot_3d_umap_anno <- function(umap.fn,
 plot_RD_highlight <- function(rd.dat, 
                               meta, 
                               meta.col,
+<<<<<<< HEAD
                               show.legend=TRUE, 
+=======
+                              show.legend=c("fg","all","none"), 
+>>>>>>> 378a4760fd189859e6a3894ba8b3409b8cc36f1f
                               legend.size=5,
                               theme.void = TRUE,
                               fg.cells = rownames(rd.dat),
@@ -807,7 +847,14 @@ plot_RD_highlight <- function(rd.dat,
                               fg.alpha = 0.7,
                               bg.cex = 0.15,  
                               bg.alpha = 0.25,
+<<<<<<< HEAD
                               bg.color=NULL ) {
+=======
+                              bg.color=NULL,
+                              rel.legend.width = 0.15 ,
+                              raster=F, dpi=300
+                                    ) {
+>>>>>>> 378a4760fd189859e6a3894ba8b3409b8cc36f1f
   
   rd.dat = as.data.frame(rd.dat)
   colnames(rd.dat)[1:2] = c("Dim1","Dim2")  
@@ -840,6 +887,7 @@ plot_RD_highlight <- function(rd.dat,
   plot.col <- unique(plot.df[,c("color", "meta")])
   plot.col <- setNames(plot.col$color, plot.col$meta)
   
+<<<<<<< HEAD
   g = ggplot(plot.df, aes(Dim1, Dim2, colour=meta)) + 
     geom_point(#colour=plot.df$color, 
       size = plot.df$cex, 
@@ -847,6 +895,22 @@ plot_RD_highlight <- function(rd.dat,
       shape= 19) +
     scale_colour_manual(values=plot.col,
                         name=NULL)
+=======
+  g = ggplot(plot.df, aes(Dim1, Dim2, colour=meta))
+  if(isTrue(raster)){
+    g = g + ggrastr::rasterise(geom_point(#colour=plot.df$color, 
+      size = plot.df$cex, 
+      alpha= plot.df$alpha.val,
+      shape= 19), dpi=dpi)
+  } else{ 
+    g = g +    geom_point(#colour=plot.df$color, 
+      size = plot.df$cex, 
+      alpha= plot.df$alpha.val,
+      shape= 19)
+  }
+  g = g + scale_colour_manual(values=plot.col,
+                              name=NULL) 
+>>>>>>> 378a4760fd189859e6a3894ba8b3409b8cc36f1f
   
   if(isTRUE(theme.void)){
     g = g + theme_void()
@@ -856,6 +920,7 @@ plot_RD_highlight <- function(rd.dat,
                  axis.line.y = element_line(colour = "black"))
   }
   
+<<<<<<< HEAD
   
   if(show.legend == FALSE){
     g = g + theme(legend.position="none") 
@@ -864,6 +929,47 @@ plot_RD_highlight <- function(rd.dat,
   }
   
   g = g + coord_fixed(ratio=1)
+=======
+  g = g + coord_fixed(ratio=1) +
+    theme(legend.position="none") 
+  
+  
+  if(show.legend == "fg"){
+    
+    leg.col <- plot.col[names(plot.col) %in% fg.df$meta]
+    leg.plot <- ggplot(fg.df, aes(Dim1, Dim2, colour=droplevels(meta))) + 
+      geom_point(#colour=plot.df$color, 
+        size = fg.df$cex, 
+        alpha= fg.df$alpha.val,
+        shape= 19) +
+      scale_colour_manual(values=leg.col,
+                          name=NULL)
+    leg.plot = leg.plot + guides(colour = guide_legend(override.aes = list(size=legend.size)))
+    legend <- cowplot::get_legend(leg.plot)
+    
+    g = cowplot::plot_grid(g, legend, ncol =2,rel_widths = c(1,rel.legend.width),greedy = F)
+    
+  } else if(show.legend == "all"){
+    
+    leg.plot <-  ggplot(plot.df, aes(Dim1, Dim2, colour=meta)) + 
+      geom_point(#colour=plot.df$color, 
+        size = plot.df$cex, 
+        alpha= plot.df$alpha.val,
+        shape= 19) +
+      scale_colour_manual(values=plot.col,
+                          name=NULL) 
+    leg.plot = leg.plot + guides(colour = guide_legend(override.aes = list(size=legend.size)))
+    legend <- cowplot::get_legend(leg.plot)
+    
+    g = cowplot::plot_grid(g, legend, ncol =2,rel_widths = c(1,rel.legend.width),greedy = F)
+    
+    
+  }  
+  else{
+    g = g + theme(legend.position="none") 
+  }
+  
+>>>>>>> 378a4760fd189859e6a3894ba8b3409b8cc36f1f
   
   return(g)
   
@@ -871,4 +977,7 @@ plot_RD_highlight <- function(rd.dat,
 
 
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 378a4760fd189859e6a3894ba8b3409b8cc36f1f
