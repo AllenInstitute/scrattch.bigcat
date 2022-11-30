@@ -803,7 +803,6 @@ plot_3d_umap_anno <- function(umap.fn,
 
 
 
-#' plot_RD_highlight
 #'
 #' @param rd.dat 
 #' @param meta 
@@ -830,6 +829,8 @@ plot_RD_highlight <- function(rd.dat,
                               meta.col,
                               show.legend=c("fg","all","none"), 
                               legend.size=5,
+                              label.center=F,
+                              label.repel=F,
                               theme.void = TRUE,
                               fg.cells = rownames(rd.dat),
                               fg.cex = 0.3, 
@@ -838,8 +839,9 @@ plot_RD_highlight <- function(rd.dat,
                               bg.alpha = 0.25,
                               bg.color=NULL,
                               rel.legend.width = 0.15 ,
-                              raster=F, dpi=300)
-{ 
+                              raster=F, dpi=300
+) {
+  
   rd.dat = as.data.frame(rd.dat)
   colnames(rd.dat)[1:2] = c("Dim1","Dim2")  
   rd.dat$meta <- meta[match(rownames(rd.dat), names(meta))]
@@ -872,7 +874,7 @@ plot_RD_highlight <- function(rd.dat,
   plot.col <- setNames(plot.col$color, plot.col$meta)
   
   g = ggplot(plot.df, aes(Dim1, Dim2, colour=meta))
-  if(isTrue(raster)){
+  if(isTRUE(raster)){
     g = g + ggrastr::rasterise(geom_point(#colour=plot.df$color, 
       size = plot.df$cex, 
       alpha= plot.df$alpha.val,
@@ -885,6 +887,7 @@ plot_RD_highlight <- function(rd.dat,
   }
   g = g + scale_colour_manual(values=plot.col,
                               name=NULL) 
+  
   if(isTRUE(theme.void)){
     g = g + theme_void()
   } else {
@@ -896,11 +899,36 @@ plot_RD_highlight <- function(rd.dat,
   g = g + coord_fixed(ratio=1) +
     theme(legend.position="none") 
   
+  if(label.center){
+    tmp.cl <- setNames(plot.df$meta[rownames(plot.df) %in% select.cells], rownames(plot.df)[rownames(plot.df) %in% select.cells])
+    cl.center = get_RD_cl_center(rd.dat[select.cells,], tmp.cl)
+    
+    cl.center <- data.frame(Dim1 = cl.center[,1],
+                            Dim2 = cl.center[,2],
+                            meta = rownames(cl.center),
+                            alpha.val = fg.alpha,
+                            cex = fg.cex,
+                            color = "grey40",
+                            group = "center")
+    plot.df <- full_join(plot.df, cl.center)
+    
+    if(label.repel){
+      p = g + ggrepel::geom_text_repel(data=plot.df %>% filter(group == "center"),
+                                       aes(Dim1, Dim2, label = meta),
+                                       box.padding = 0.5, max.overlaps = Inf) 
+    } else{
+      p = g + geom_text(data=plot.df %>% filter(group == "center"),
+                        aes(Dim1, Dim2, label = meta)) 
+    }
+  } 
   
   if(show.legend == "fg"){
     
     leg.col <- plot.col[names(plot.col) %in% fg.df$meta]
-    leg.plot <- ggplot(fg.df, aes(Dim1, Dim2, colour=droplevels(meta))) + 
+    if(is.factor(fg.df$meta)){
+      fg.df$meta <- droplevels(fg.df$meta)
+    }
+    leg.plot <- ggplot(fg.df, aes(Dim1, Dim2, colour=meta)) + 
       geom_point(#colour=plot.df$color, 
         size = fg.df$cex, 
         alpha= fg.df$alpha.val,
@@ -922,13 +950,19 @@ plot_RD_highlight <- function(rd.dat,
       scale_colour_manual(values=plot.col,
                           name=NULL) 
     leg.plot = leg.plot + guides(colour = guide_legend(override.aes = list(size=legend.size)))
-    legend <- cowplot::get_legend(leg.plot)    
-    g = cowplot::plot_grid(g, legend, ncol =2,rel_widths = c(1,rel.legend.width),greedy = F) 
+    legend <- cowplot::get_legend(leg.plot)
+    
+    g = cowplot::plot_grid(g, legend, ncol =2,rel_widths = c(1,rel.legend.width),greedy = F)
+    
+    
   }  
   else{
     g = g + theme(legend.position="none") 
   }
-  return(g)  
+  
+  
+  return(g)
+  
 }
 
 
