@@ -913,11 +913,11 @@ plot_RD_highlight <- function(rd.dat,
     plot.df <- full_join(plot.df, cl.center)
     
     if(label.repel){
-      p = g + ggrepel::geom_text_repel(data=plot.df %>% filter(group == "center"),
+      g = g + ggrepel::geom_text_repel(data=plot.df %>% filter(group == "center"),
                                        aes(Dim1, Dim2, label = meta),
                                        box.padding = 0.5, max.overlaps = Inf) 
     } else{
-      p = g + geom_text(data=plot.df %>% filter(group == "center"),
+      g = g + geom_text(data=plot.df %>% filter(group == "center"),
                         aes(Dim1, Dim2, label = meta)) 
     }
   } 
