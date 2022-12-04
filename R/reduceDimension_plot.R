@@ -830,7 +830,10 @@ plot_RD_highlight <- function(rd.dat,
                               show.legend=c("fg","all","none"), 
                               legend.size=5,
                               label.center=F,
+                              label.cex=1,
                               label.repel=F,
+                              label.min.cells=5,
+                              label.meta=NULL,
                               theme.void = TRUE,
                               fg.cells = rownames(rd.dat),
                               fg.cex = 0.3, 
@@ -845,7 +848,7 @@ plot_RD_highlight <- function(rd.dat,
   rd.dat = as.data.frame(rd.dat)
   colnames(rd.dat)[1:2] = c("Dim1","Dim2")  
   rd.dat$meta <- meta[match(rownames(rd.dat), names(meta))]
-  
+  select.cells= intersect(row.names(rd.dat),names(meta))
   bg.df <- rd.dat[!(rownames(rd.dat) %in% fg.cells),]
   
   if(nrow(bg.df)>0) {
@@ -867,13 +870,8 @@ plot_RD_highlight <- function(rd.dat,
     fg.df$cex <- fg.cex
     fg.df$color <- meta.col[match(fg.df$meta, names(meta.col))]
   }
-  
   plot.df <- rbind(bg.df, fg.df)
-  
-  plot.col <- unique(plot.df[,c("color", "meta")])
-  plot.col <- setNames(plot.col$color, plot.col$meta)
-  
-  g = ggplot(plot.df, aes(Dim1, Dim2, colour=meta))
+  g = ggplot(plot.df, aes(Dim1, Dim2, colour=color))
   if(isTRUE(raster)){
     g = g + ggrastr::rasterise(geom_point(#colour=plot.df$color, 
       size = plot.df$cex, 
@@ -885,8 +883,7 @@ plot_RD_highlight <- function(rd.dat,
       alpha= plot.df$alpha.val,
       shape= 19)
   }
-  g = g + scale_colour_manual(values=plot.col,
-                              name=NULL) 
+  g = g + scale_colour_identity()
   
   if(isTRUE(theme.void)){
     g = g + theme_void()
@@ -900,27 +897,36 @@ plot_RD_highlight <- function(rd.dat,
     theme(legend.position="none") 
   
   if(label.center){
-    tmp.cl <- setNames(plot.df$meta[rownames(plot.df) %in% select.cells], rownames(plot.df)[rownames(plot.df) %in% select.cells])
-    cl.center = get_RD_cl_center(rd.dat[select.cells,], tmp.cl)
-    
-    cl.center <- data.frame(Dim1 = cl.center[,1],
-                            Dim2 = cl.center[,2],
-                            meta = rownames(cl.center),
-                            alpha.val = fg.alpha,
-                            cex = fg.cex,
-                            color = "grey40",
-                            group = "center")
-    plot.df <- full_join(plot.df, cl.center)
-    
-    if(label.repel){
-      g = g + ggrepel::geom_text_repel(data=plot.df %>% filter(group == "center"),
-                                       aes(Dim1, Dim2, label = meta),
-                                       box.padding = 0.5, max.overlaps = Inf) 
-    } else{
-      g = g + geom_text(data=plot.df %>% filter(group == "center"),
-                        aes(Dim1, Dim2, label = meta)) 
+    tmp.cl <- setNames(plot.df$meta[rownames(plot.df) %in% fg.cells], rownames(plot.df)[rownames(plot.df) %in% fg.cells])
+    cl.size = table(tmp.cl)
+    if(!is.null(label.meta)){
+      select.cl = label.meta
     }
-  } 
+    else{
+      select.cl = names(cl.size)[cl.size >= label.min.cells]
+    }
+    if(length(select.cl)>0){
+      tmp.cl = tmp.cl[tmp.cl %in% select.cl]
+      if(is.factor(tmp.cl)){
+        tmp.cl = droplevels(tmp.cl)
+      }
+      cl.center = get_RD_cl_center(rd.dat[fg.cells,], tmp.cl)
+      cl.center <- data.frame(Dim1 = cl.center[,1],
+                              Dim2 = cl.center[,2],
+                              meta = rownames(cl.center),               
+                              cex = label.cex,
+                              color = "black")
+      cl.center$segment.color = meta.col[cl.center$meta]
+      if(label.repel){
+        g = g + ggrepel::geom_text_repel(data=cl.center,
+          aes(Dim1, Dim2, label = meta, size=cex,segment.color=segment.color), color="black",
+          box.padding = 1, max.overlaps = Inf, min.segment.length=1)
+      } else{
+        g = g + geom_text(data=cl.center,
+          aes(Dim1, Dim2, label = meta, size=cex), color="black")
+      }
+    }
+  }
   
   if(show.legend == "fg"){
     
