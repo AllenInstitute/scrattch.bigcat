@@ -440,7 +440,7 @@ plot_constellation <- function(knn.cl.df,
     
     col.idx <- grep(pattern = paste(fg.edges, collapse="|"),
                     x = poly.Edges$Group)
-    poly.Edges[co.idx,"alpha"] <- fg.alpha
+    poly.Edges[col.idx,"alpha"] <- fg.alpha
   } else{
     poly.Edges$alpha <- fg.alpha
   }
@@ -473,6 +473,7 @@ plot_constellation <- function(knn.cl.df,
     
     
     if(label_repel ==TRUE){
+      library(ggrepel)
       plot.all <- plot.all +
         ggrepel::geom_text_repel(data=nodes,
                                  aes(x=x, 
