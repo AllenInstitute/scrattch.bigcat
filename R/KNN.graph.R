@@ -71,7 +71,9 @@ get_knn_graph <- function(rd.dat, cl, ref.cells=row.names(rd.dat),method="Annoy.
 #' @param highlight_color color used to highlight node
 #' @param highlight_width stroke width used to highlight node
 #' @param highlight_labsize label size for highlighted nodes
-#' @param fg.edges which edges to highlight selected by node using the cl value which is not necessarily the node label
+#' @param edge_mark_list which edges to color different selected by node using the cl value which is not necessarily the node label
+#' @param edge_marking  options are to "dim" or "highlight" highlight edges provided in edge_mark_list
+#' @param bg.edges which edges to dim selected by node using the cl value which is not necessarily the node label. Choose one of fg.edges or bg.edges. Choosing both might lead to unexpected behaviour.
 #'
 #'
 #' @example_data:
@@ -102,7 +104,8 @@ plot_constellation <- function(knn.cl.df,
                                highlight_color = "red",
                                highlight_width = 1,
                                highlight_labsize=10 ,
-                               fg.edges = NULL, 
+                               edge_mark_list = NULL,
+                               edge_marking = c("dim","highlight"),
                                fg.alpha = 0.4,
                                bg.alpha = 0.1) { 
   
@@ -360,7 +363,7 @@ plot_constellation <- function(knn.cl.df,
   
   groups <- unique(allEdges$Group)
   
-  poly.Edges <- data.frame(x=numeric(), y=numeric(), Group=character(),stringsAsFactors=FALSE)
+  poly.Edges <- data.frame(x=numeric(), y=numeric(), Group=character(),g1=integer(), g2=integer(),stringsAsFactors=FALSE)
   imax <- as.numeric(length(groups))
   
   for(i in 1:imax) { 
@@ -408,6 +411,7 @@ plot_constellation <- function(knn.cl.df,
     lineright <- lineright[nrow(lineright):1, ]
     lines.lr <- rbind(lineleft, lineright)
     lines.lr$Group <- select.group
+    lines.lr[c("g1","g2")] <- as.integer(as.character(stringr::str_split_fixed(lines.lr$Group, '>', 2)))
     
     poly.Edges <- rbind(poly.Edges,lines.lr)
     
@@ -435,12 +439,24 @@ plot_constellation <- function(knn.cl.df,
   #p.edges
   library("data.table")  
   
-  if(!is.null(fg.edges)){
-    poly.Edges$alpha <- bg.alpha
+
+  
+  if(!is.null(edge_mark_list)){
+    if(edge_marking == "dim"){
+      poly.Edges$alpha <- fg.alpha
+      
+      poly.Edges$alpha[poly.Edges$g1 %in% edge_mark_list] <- bg.alpha
+      poly.Edges$alpha[poly.Edges$g2 %in% edge_mark_list] <- bg.alpha 
+      
+    } else if(edge_marking == "highlight"){
+      poly.Edges$alpha <- bg.alpha
+      poly.Edges$alpha[poly.Edges$g1 %in% edge_mark_list] <- fg.alpha
+      poly.Edges$alpha[poly.Edges$g2 %in% edge_mark_list] <- fg.alpha 
+      
+    } else{
+      print("provide valid edge marking")
+    }
     
-    col.idx <- grep(pattern = paste(fg.edges, collapse="|"),
-                    x = poly.Edges$Group)
-    poly.Edges[col.idx,"alpha"] <- fg.alpha
   } else{
     poly.Edges$alpha <- fg.alpha
   }
@@ -534,7 +550,7 @@ plot_constellation <- function(knn.cl.df,
                                        label=.data[[node.label]]),
                                    size = highlight_labsize,
                                    min.segment.length = Inf) + 
-          geom_text_repel(data=nodes %>% filter(!(cluster_id %in% highlight_nodes)),
+          ggrepel::geom_text_repel(data=nodes %>% filter(!(cluster_id %in% highlight_nodes)),
                           aes(x=x, 
                               y=y, 
                               label=.data[[node.label]]),
@@ -544,7 +560,7 @@ plot_constellation <- function(knn.cl.df,
           theme(legend.position="none")
       } else {
         plot.all <- plot.all +
-          geom_text_repel(data=nodes ,
+          ggrepel::geom_text_repel(data=nodes ,
                           aes(x=x, 
                               y=y, 
                               label=.data[[node.label]]),
@@ -563,14 +579,12 @@ plot_constellation <- function(knn.cl.df,
                     aes(x=x, 
                         y=y, 
                         label=.data[[node.label]]),
-                    size = highlight_labsize,
-                    min.segment.length = Inf) + 
+                    size = highlight_labsize) + 
           geom_text(data=nodes %>% filter(!(cluster_id %in% highlight_nodes)),
                     aes(x=x, 
                         y=y, 
                         label=.data[[node.label]]),
-                    size = label.size,
-                    min.segment.length = Inf) +
+                    size = label.size) +
           theme_void() +
           theme(legend.position="none")
       } else{
@@ -697,56 +711,6 @@ plot_constellation <- function(knn.cl.df,
   if(return.list==TRUE){
     return(list(constellation = plot.all, edges.df = poly.Edges, nodes.df = nodes))}
 }
-
-
-
-
-
-
-
-
-
-
-## function to draw (curved) line between to points
-#' function to draw (curved) line between two points
-#'
-#' @param whichRow 
-#' @param len 
-#' @param line.segments 
-#' @param curved 
-#'
-#' @return
-#' @export
-#'
-#' @examples
-edgeMaker <- function(whichRow, len=100, line.segments, curved=FALSE){
-  
-  fromC <- unlist(line.segments[whichRow,c(3,4)])# Origin
-  toC <- unlist(line.segments[whichRow,c(5,6)])# Terminus
-  # Add curve:
-  
-  graphCenter <- colMeans(line.segments[,c(3,4)])  # Center of the overall graph
-  bezierMid <- c(fromC[1], toC[2])  # A midpoint, for bended edges
-  distance1 <- sum((graphCenter - bezierMid)^2)
-  if(distance1 < sum((graphCenter - c(toC[1], fromC[2]))^2)){
-    bezierMid <- c(toC[1], fromC[2])
-  }  # To select the best Bezier midpoint
-  bezierMid <- (fromC + toC + bezierMid) / 3  # Moderate the Bezier midpoint
-  if(curved == FALSE){bezierMid <- (fromC + toC) / 2}  # Remove the curve
-  
-  edge <- data.frame(bezier(c(fromC[1], bezierMid[1], toC[1]),  # Generate
-                            c(fromC[2], bezierMid[2], toC[2]),  # X & y
-                            evaluation = len))  # Bezier path coordinates
-  
-  #line.width.from in 100 steps to linewidth.to
-  edge$fraction <- seq(line.segments$ex.line.from[whichRow], line.segments$ex.line.to[whichRow], length.out = len)
-  
-  
-  #edge$Sequence <- 1:len  # For size and colour weighting in plot
-  edge$Group <- paste(line.segments[whichRow, 1:2], collapse = ">")
-  return(edge)
-}
-
 
 
 
