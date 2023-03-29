@@ -112,6 +112,7 @@ big.dat_subset_fbm <- function(big.dat, rows, cols)
 
 get_cols <-  function(big.dat, cols, rows=big.dat$row_id, ...)
   {
+    library(arrow)
     if(!is.list(big.dat)){
       mat = big.dat[rows, cols]
     }
@@ -186,6 +187,7 @@ get_logNormal <- function(big.dat, cols, rows=big.dat$row_id, ...)
 
 get_counts <- function(big.dat, cols, ...)
   {
+    library(arrow)
     mat = get_cols(big.dat, cols,...)
     if(big.dat$logNormal){
       mat@x = 2^mat@x -1
@@ -304,6 +306,7 @@ get_cols_parquet_dense <- function(big.dat, cols, rows, mc.cores=5)
 
 convert_big.dat_parquet <- function(mat, dir=getwd(),parquet.dir=file.path(dir,"norm.dat_parquet"), col.fn=file.path(dir,"samples.parquet"), row.fn=file.path(dir,"gene.parquet"),col.bin.size=50000, row.bin.size=500,logNormal=TRUE,mc.cores=10)
   {
+    library(arrow)
     if(!dir.exists(dir)){
       dir.create(dir)
     }
@@ -357,6 +360,7 @@ convert_big.dat_parquet <- function(mat, dir=getwd(),parquet.dir=file.path(dir,"
 ##' @author Zizhen Yao
 append_big.dat_parquet <- function(mat, big.dat, col.bin.size=50000, row.bin.size=500, mc.cores=10)
   {
+    library(arrow)
     parquet.dir = big.dat$parquet.dir
     if(is.null(big.dat$col.df)){
       col.df = read_parquet(big.dat$col.fn)
@@ -405,6 +409,7 @@ append_big.dat_parquet <- function(mat, big.dat, col.bin.size=50000, row.bin.siz
 
 convert_mat_list_big.dat_parquet <- function(mat.fn.list, dir=getwd(),parquet.dir=file.path(dir,"norm.dat_parquet"), col.fn=file.path(dir,"samples.parquet"), row.fn=file.path(dir,"gene.parquet"),col.bin.size=50000, row.bin.size=500,logNormal=TRUE,mc.cores=10)
   {
+    library(arrow)
     load(mat.fn.list[[1]])
     cat(mat.fn.list[[1]],ncol(mat),"cells\n")
     big.dat = convert_big.dat_parquet(mat, dir=dir, parquet.dir = parquet.dir, col.fn=col.fn, row.fn=row.fn, col.bin.size=col.bin.size, row.bin.size=row.bin.size, logNormal=logNormal, mc.cores=mc.cores)
@@ -421,6 +426,7 @@ convert_mat_list_big.dat_parquet <- function(mat.fn.list, dir=getwd(),parquet.di
 
 reorder_big.dat_parquet <- function(big.dat, cols, dir=getwd(),parquet.dir=file.path(dir,"norm.dat_parquet"), col.fn=file.path(dir,"samples.parquet"), row.fn=file.path(dir,"gene.parquet"), col.bin.size=50000,mc.cores=10)
   {
+    library(arrow)
     big.dat = init_big.dat_parquet(big.dat)
     if(!dir.exists(dir)){
       dir.create(dir)
@@ -471,6 +477,7 @@ reorder_big.dat_parquet <- function(big.dat, cols, dir=getwd(),parquet.dir=file.
 
 fbm_to_parquet <- function(big.dat, cols=big.dat$col_id, rows=big.dat$row_id, dir="./",parquet.dir=file.path(dir,"norm.dat_parquet"), col.fn=file.path(dir,"samples.parquet"), row.fn=file.path(dir,"gene.parquet"), row.bin.size = 500,    col.bin.size = 50000)
   {
+    library(arrow)
     if(!dir.exists(dir)){
       dir.create(dir)
     }

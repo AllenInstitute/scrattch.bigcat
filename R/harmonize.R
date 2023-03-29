@@ -106,7 +106,7 @@ get_knn_batch <- function(dat, ref.dat, k, method="cor", dim=NULL, batch.size, m
       }
       index = buildAnnoy(map.ref.dat, ntrees = ntrees)
       rm(map.ref.dat)
-      gc()
+      #gc()
     }    
     if(transposed){      
       results <- batch_process(x=1:ncol(dat), batch.size=batch.size, mc.cores=mc.cores, .combine=fun, FUN=function(bin){
@@ -199,7 +199,7 @@ get_knn <- function(dat, ref.dat, k, method ="cor", dim=NULL,index=NULL, build.i
     knn.distance = knn.result[[2]]
     row.names(knn.index) = row.names(knn.distance)=cell.id
     rm(dat)
-    gc()
+    #gc()
     if(!return.distance){
       return(knn.index)
     }
@@ -289,14 +289,13 @@ select_joint_genes <-  function(comb.dat, ref.dat.list, select.cells = comb.dat$
       vg = find_vg(tmp.dat)      
       rm(tmp.dat)
       gc()
-      vg$gene = row.names(vg)
-      vg = vg%>% arrange(loess.padj,-abs(loess.z))
+      vg = vg %>% arrange(loess.padj,-abs(loess.z))
       if(nrow(vg) > maxGenes){
-        select.genes = row.names(vg)[which(vg$loess.padj < vg.padj.th | vg$dispersion >3)]
+        select.genes = with(vg, gene[which(loess.padj < vg.padj.th | dispersion >3)])
         if(length(select.genes) < 5){
           return(NULL)
         }
-        select.genes = head(select.genes[order(vg[select.genes, "loess.padj"],-vg[select.genes, "loess.z"])],maxGenes+1000)
+        select.genes = head(select.genes, maxGenes+1000)
         rd = rd_PCA(norm.dat=ref.dat,select.genes, ref.cells, max.pca = max.dim,method="elbow")
         if(is.null(rd)){
           return(NULL)
@@ -307,6 +306,9 @@ select_joint_genes <-  function(comb.dat, ref.dat.list, select.cells = comb.dat$
         else{
           rd.dat = rd$rd.dat
         }
+        if(is.null(rd.dat)){
+          return(NULL)
+        }
         rot = t(rd$pca$rotation[,colnames(rd.dat)])
         if(is.null(rot)){
           return(NULL)
@@ -314,7 +316,10 @@ select_joint_genes <-  function(comb.dat, ref.dat.list, select.cells = comb.dat$
         rot.scaled = (rot  - rowMeans(rot))/rowSds(rot)
         gene.rank = t(apply(-abs(rot.scaled), 1, rank))
         select = gene.rank <= top.n & abs(rot.scaled ) > 2
-        select.genes = colnames(select)[colSums(select)>0]              
+        select.genes = colnames(select)[colSums(select)>0]
+        if(length(select.genes) < 3){
+          return(NULL)
+        }
         vg=vg %>% filter(gene %in% select.genes)
       }
       vg$rank = 1:nrow(vg)
@@ -387,10 +392,11 @@ compute_knn <- function(comb.dat, select.genes, ref.list, ref.dat.list=NULL, sel
       }
       ref.cells = ref.list[[ref.set]]
       index=NULL
-      ref.dat = ref.dat.list[[ref.set]][,ref.cells, drop=FALSE]
-      ref.dat = ref.dat[select.genes[select.genes %in% row.names(ref.dat)],,drop=FALSE]
+      ref.dat = ref.dat.list[[ref.set]]
+      ref.dat = ref.dat[select.genes[select.genes %in% row.names(ref.dat)],ref.cells,,drop=FALSE]
       idx = match(ref.cells, comb.dat$all.cells)      
-      knn =do.call("rbind", lapply(c(ref.set, setdiff(select.sets,ref.set)), function(set){
+      tmp.knn.list =list()
+      for(set in c(ref.set, setdiff(select.sets,ref.set))){
         dat = dat.list[[set]]
         cat("Set ", set, "\n")
         if(comb.dat$type=="mem"){
@@ -402,7 +408,7 @@ compute_knn <- function(comb.dat, select.genes, ref.list, ref.dat.list=NULL, sel
           map.select.genes = select.genes[select.genes %in% intersect(row.names(ref.dat),dat$row_id)]
         }        
         if(length(map.cells)==0){
-          return(NULL)
+          next
         }
         cat("map cells",length(map.cells),"\n")
         map.index=NULL
@@ -422,12 +428,12 @@ compute_knn <- function(comb.dat, select.genes, ref.list, ref.dat.list=NULL, sel
           tmp.ref.dat = tmp.ref.dat[map.select.genes,,drop=FALSE]
         }
         if(all(map.cells %in% colnames(ref.dat.list[[set]]))){
-          dat = ref.dat.list[[set]][map.select.genes,map.cells]          
+          dat = ref.dat.list[[set]][map.select.genes,map.cells,drop=FALSE]          
           knn.result=get_knn_batch(dat=dat, ref.dat = tmp.ref.dat, k=k.tmp, method = method, batch.size = block.size, mc.cores=mc.cores, index=map.index, transposed=TRUE)
         }
         else{
           if(comb.dat$type=="mem"){
-            dat = comb.dat$dat.list[[set]][map.select.genes,map.cells]          
+            dat = comb.dat$dat.list[[set]][map.select.genes,map.cells,drop=FALSE]          
             knn.result=get_knn_batch(dat=dat, ref.dat = tmp.ref.dat, k=k.tmp, method = method, batch.size = block.size, mc.cores=mc.cores, index=map.index, transposed=TRUE)
           }
           else{
@@ -447,8 +453,10 @@ compute_knn <- function(comb.dat, select.genes, ref.list, ref.dat.list=NULL, sel
         #  }
         #}
         knn = knn.result[[1]]
-        knn = matrix(idx[knn], nrow=nrow(knn), dimnames=list(row.names(knn), NULL))        
-      }))
+        knn = matrix(idx[knn], nrow=nrow(knn), dimnames=list(row.names(knn), NULL))
+        tmp.knn.list[[set]]=knn
+      }
+      knn = do.call("rbind",tmp.knn.list)
       if(!is.null(index)){
         cleanAnnoyIndex(index)
       }
@@ -511,13 +519,13 @@ knn_joint <- function(comb.dat, ref.sets=names(comb.dat$dat.list), select.sets= 
   if(comb.dat$type=="mem"){
     ref.dat.list = sapply(ref.sets, function(ref.set){
       ref.dat= comb.dat$dat.list[[ref.set]]
-      ref.dat= ref.dat[!row.names(ref.dat) %in% rm.genes, ref.list[[ref.set]]]
+      ref.dat= ref.dat[!row.names(ref.dat) %in% rm.genes, ref.list[[ref.set]],drop=FALSE]
     },simplify=F)
   }
   else{
     ref.dat.list = sapply(ref.sets, function(ref.set){
       ref.dat=get_logNormal(comb.dat$dat.list[[ref.set]], ref.list[[ref.set]])
-      ref.dat[!row.names(ref.dat) %in% rm.genes,]
+      ref.dat[!row.names(ref.dat) %in% rm.genes,,drop=FALSE]
     },simplify=F)
   }
   if(is.null(select.genes)){
@@ -543,7 +551,6 @@ knn_joint <- function(comb.dat, ref.sets=names(comb.dat$dat.list), select.sets= 
     return(NULL)
   }
   #########
-  #save(knn.comb, file="knn.comb.rda")
   sampled.cells = unlist(cells.list)
   if(length(sampled.cells)> sample.size){
     tmp.list =  sample_sets_list(cells.list, comb.dat$cl.list[select.sets], sample.size=sample.size, cl.sample.size = cl.sample.size)
@@ -629,11 +636,11 @@ harmonize <- function(comb.dat, prefix, overwrite=TRUE, dir="./",...)
 ##' @param ... 
 ##' @return 
 ##' @author Zizhen Yao
-i_harmonize<- function(comb.dat, select.cells=comb.dat$all.cells, ref.sets=names(comb.dat$dat.list), prefix="", result=NULL, overwrite=TRUE, sample.size = 50000, dir="./",rm.genes=NULL,split.size = 100, ...)
+i_harmonize<- function(comb.dat, select.cells=comb.dat$all.cells, ref.sets=names(comb.dat$dat.list), select.sets=names(comb.dat$dat.list), prefix="", result=NULL, overwrite=TRUE, sample.size = 50000, dir="./",rm.genes=NULL,split.size = 100, ...)
   {
     #attach(comb.dat)
     if(is.null(result)){
-      result = harmonize(comb.dat=comb.dat, select.cells=select.cells, ref.sets=ref.sets, prefix=prefix, overwrite=overwrite,sample.size=sample.size, dir=dir,rm.genes=rm.genes,...)
+      result = harmonize(comb.dat=comb.dat, select.cells=select.cells, ref.sets=ref.sets, select.sets=select.sets,prefix=prefix, overwrite=overwrite,sample.size=sample.size, dir=dir,rm.genes=rm.genes,...)
     }
     if(is.null(result)){
       return(NULL)
@@ -650,7 +657,7 @@ i_harmonize<- function(comb.dat, select.cells=comb.dat$all.cells, ref.sets=names
       select.cells= names(cl)[cl == i]
       platform.size = table(comb.dat$meta.df[select.cells, "platform"])      
       print(platform.size)
-      pass.th = sapply(sets, function(set)platform.size[[set]] >= comb.dat$de.param.list[[set]]$min.cells)
+      pass.th = sapply(select.sets, function(set)platform.size[[set]] >= comb.dat$de.param.list[[set]]$min.cells)
       pass.th2 = sapply(ref.sets, function(set)platform.size[[set]] >= comb.dat$de.param.list[[set]]$min.cells*2)
       if(sum(pass.th) > 1 & sum(pass.th[ref.sets]) == length(ref.sets) & sum(pass.th2) >= 1){
         computed=FALSE
@@ -665,12 +672,12 @@ i_harmonize<- function(comb.dat, select.cells=comb.dat$all.cells, ref.sets=names
         }
         if(comb.dat$type!="big"){
           print("mem")
-          tmp.result = i_harmonize(comb.dat, select.cells=select.cells, ref.sets=ref.sets, prefix=tmp.prefix, overwrite=overwrite, sample.size=sample.size,dir=dir,result=result,...)
+          tmp.result = i_harmonize(comb.dat, select.cells=select.cells, ref.sets=ref.sets, select.sets=select.sets,prefix=tmp.prefix, overwrite=overwrite, sample.size=sample.size,dir=dir,result=result,...)
         }
         else{
           if(!computed & length(select.cells) < sample.size){
             new.comb.dat = comb.dat
-            dat.list = sample_cl_dat(comb.dat, sets, cl=cl[select.cells],sample.size)
+            dat.list = sample_cl_dat(comb.dat, sets=select.sets, cl=cl[select.cells],sample.size)
             if(!is.null(rm.genes)){
               dat.list = rm_genes(dat.list, rm.genes)
             }
@@ -679,7 +686,7 @@ i_harmonize<- function(comb.dat, select.cells=comb.dat$all.cells, ref.sets=names
             print("mem")
             tmp.result = i_harmonize(comb.dat=new.comb.dat, select.cells=select.cells, ref.sets=ref.sets, prefix=tmp.prefix, overwrite=overwrite, sample.size=sample.size,dir=dir,result=result,...)
             rm(new.comb.dat)
-            gc()
+            #gc()
           }
           else{
             print("big")
@@ -700,7 +707,7 @@ rm_genes <- function(dat.list, rm.genes)
       dat = dat.list[[x]]
       rm = row.names(dat) %in% rm.genes
       if(any(rm)){
-        dat = dat[!rm,]
+        dat = dat[!rm,,drop=FALSE]
         dat.list[[x]] = dat
       }
     }
@@ -945,6 +952,61 @@ sim_knn <- function(sim, k=15)
   return(list(knn.index, knn.distance))
 }
 
+##' .. content for \description{} (no empty lines) ..
+##'
+##' .. content for \details{} ..
+##' @title 
+##' @param knn.index 
+##' @param bin_size 
+##' @param prune 
+##' @return 
+##' @author Zizhen Yao
+jaccard_big <-  function(knn.index, bin_size =50000, prune=0)
+{
+  library(arrow)
+  library(dplyr)
+  library(Matrix)
+  k = ncol(knn.index)
+  total = nrow(knn.index)
+  id=row.names(knn.index)
+  max.index=max(knn.index)
+  ## common values:
+  bins = ceiling((1:nrow(knn.index))/bin_size)
+  nbin = max(bins)
+  fn.list = c()
+  for(b1 in 1:nbin){
+    for(b2 in b1:nbin){
+      i1 = which(bins==b1)
+      j1 = as.vector(knn.index[i1,])
+      ii1 = rep(i1, k)
+      knn.mat1 = sparseMatrix(i = j1, j=ii1, x=1, dims=c(max.index, total))
+      i2 = which(bins==b2)
+      j2 = as.vector(knn.index[i2,])
+      ii2 = rep(i2, k)
+      knn.mat2 = sparseMatrix(i = j2, j=ii2, x=1, dims=c(max.index, total))
+      A <-  Matrix::crossprod(knn.mat1, knn.mat2)
+      A@x = A@x / (2*k - A@x)
+      #A should be a sym matrix
+      A <- as(A, "TsparseMatrix")
+      if(nbin>1){
+        df = data.frame(from=A@i+1, to=A@j+1, weight=A@x)
+        df = df %>% filter(weight > prune & from <= to)
+        fn = tempfile()
+        write_parquet(df, sink=fn)
+        fn.list = c(fn.list, fn)
+      }
+      #rm(A)
+      #rm(df)
+      #gc()
+    }
+  }
+  if(nbin>1){
+    df = open_dataset(fn.list) %>% collect()
+    unlink(fn.list)
+    A = sparseMatrix(i=df[[1]],j=df[[2]],x=df[[3]], repr="T",symmetric=TRUE)    
+  }
+  return(A)
+}
 
 #' KNN Jaccard Louvain
 #'
@@ -968,9 +1030,11 @@ knn_jaccard_clust <- function(knn.index, method=c("leiden","louvain"),prune=0.05
     require(igraph)
     cat("Get jaccard\n")
     #sim=knn_jaccard(knn.index,...)
-    sim = ComputeSNN(knn.index,prune=prune)
+    #sim = ComputeSNN(knn.index,prune=prune)
+    sim=jaccard_big(knn.index, prune=prune)
     rownames(sim) = colnames(sim) = row.names(knn.index)
-    gr <- igraph::graph.adjacency(sim, mode = "undirected", 
+
+    gr <- igraph::graph.adjacency(sim, mode = "upper", 
                                   weighted = TRUE)
     if(method[1]=="louvain"){
       cat("Louvain clustering\n")
@@ -989,7 +1053,7 @@ knn_jaccard_clust <- function(knn.index, method=c("leiden","louvain"),prune=0.05
     else{
       rm(gr)
     }
-    gc()
+    #gc()
     return(result)
   }
 
@@ -1076,5 +1140,40 @@ get_gene_cl_correlation <- function(cl.means.list)
     }
     return(gene.cl.cor)
   }
+
+
+#' Title
+#'
+#' @param consensus.cl 
+#' @param prefix 
+#' @param comb.dat 
+#' @param consensus.cl.df 
+#' @param do.droplevels 
+#' @param ... 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+plot_confusion <- function(consensus.cl, prefix, comb.dat,consensus.cl.df = NULL, sets=names(comb.dat$cl.list), do.droplevels = FALSE,cex.x=6, cex.y=6,...)
+{
+  g.list=list()
+  for(x in sets){
+    if(sum(names(comb.dat$cl.list[[x]]) %in% names(consensus.cl)) > 0){
+      if(is.null(consensus.cl.df)){
+        g = compare_annotate(consensus.cl, comb.dat$cl.list[[x]], comb.dat$cl.df.list[[x]], rename = FALSE, do.droplevels=do.droplevels,cex.x=cex.x, cex.y=cex.y)$g
+        g = g + xlab("consensus cluster") + ylab(x)
+      }
+      else{
+        g = compare_annotate(comb.dat$cl.list[[x]], consensus.cl, consensus.cl.df, rename = FALSE, do.droplevels=do.droplevels)$g
+        g = g + ylab("consensus cluster") + xlab(x)
+      }
+      g.list[[x]] <- g
+      ggsave(paste(prefix, x, "pdf", sep="."), g,...)
+    }
+  }
+  return(g.list)
+}
+
 
 

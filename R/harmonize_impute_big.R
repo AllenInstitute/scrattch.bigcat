@@ -79,7 +79,7 @@ impute_knn_global_big <- function(comb.dat, split.results, select.genes, select.
         knn = get_knn_batch(rd.dat, rd.dat[ref.cells,], method="Annoy.Euclidean", mc.cores=mc.cores, batch.size=50000,k=k,transposed=FALSE,clear.index=TRUE)        
         impute.dat.big = impute.dat.list[[x]]
         impute_dat_big(impute.dat.big, comb.dat$dat.list[[x]], knn, ref.cells, select.genes)
-###cross-modality Imputation based on nearest neighbors in each iteraction of clustering using anchoring genes or genes shown to be differentiall expressed. 
+        ###cross-modality Imputation based on nearest neighbors in each iteraction of clustering using anchoring genes or genes shown to be differentiall expressed. 
         for(x in names(split.results)){      
           result = split.results[[x]]
           impute.genes = intersect(c(result$markers,result$select.genes), select.genes)
@@ -103,5 +103,34 @@ impute_knn_global_big <- function(comb.dat, split.results, select.genes, select.
       }
     
     return(impute.dat.list)
+  }
+
+impute_cross_big <- function(split.results, ref.big.dat, query.big.dat, query.cells= query.big.dat$col_id,ref.cells= ref.big.dat$col_id, impute.genes = ref.big.dat$row_id, prefix=format(Sys.time(), '%Y_%m_%d.%H.%M'),k=15,method = "Annoy.Cosine", mc.cores=10, clear.index=TRUE)
+  {
+    impute.dat.big = create_big.dat_fbm(col.id=query.cells, row.id=impute.genes,backingfile=paste0("impute_data_",prefix))
+    for(g in names(split.results)){
+      result = split.results[[g]]
+      tmp.cl=result$cl
+      select.impute.genes = intersect(result$markers,impute.genes)
+      
+      knn.genes = result$select.genes
+      if(length(select.impute.genes) < 5 | length(knn.genes)<5){
+        next
+      }
+      cat("split group",g,length(select.impute.genes),"\n")
+      select.ref.cells = intersect(names(tmp.cl), ref.cells)     
+      select.ref.cells = sample_cells(tmp.cl[select.ref.cells], 100)
+      select.query.cells= intersect(names(tmp.cl), query.cells)
+      if(length(select.query.cells)==0){
+        next
+      }
+      ref.dat = get_logNormal(ref.big.dat, select.ref.cells, knn.genes)
+      knn=get_knn_batch_big(query.big.dat, ref.dat = ref.dat, select.cells=select.query.cells, k=k, method = method, mc.cores=mc.cores, clear.index=clear.index)
+      
+      split.results[[g]]$knn = knn
+      split.results[[g]]$ref.cells = ref.cells      
+      impute_dat_big(impute.dat.big, big.dat=ref.big.dat, knn=knn, ref.cells=select.ref.cells,select.genes=select.impute.genes)        
+    }
+    return(list(impute.dat.big=impute.dat.big,split.results=split.results))
   }
 
