@@ -267,9 +267,9 @@ plot_constellation <- function (knn.cl.df,
   knn.cl <- knn.cl.df
   ##from knn.cl data frame remove all entries within cluster edges.
   knn.cl.d <- knn.cl[!(knn.cl$cl.from == knn.cl$cl.to),] 
-  nodes$cl=as.numeric(as.character(nodes$cl))
-  knn.cl.d$cl.from <- as.numeric(as.character(knn.cl.d$cl.from))
-  knn.cl.d$cl.to <- as.numeric(as.character(knn.cl.d$cl.to))
+  nodes$cl=as.character(nodes$cl)
+  knn.cl.d$cl.from <- as.character(knn.cl.d$cl.from)
+  knn.cl.d$cl.to <- as.character(knn.cl.d$cl.to)
   
   knn.cl.d <- left_join(knn.cl.d, select(nodes, cl, node.width), by=c("cl.from"="cl"))
   colnames(knn.cl.d)[colnames(knn.cl.d)=="node.width"]<- "node.pt.from"
@@ -319,7 +319,7 @@ plot_constellation <- function (knn.cl.df,
   ###==== create line segments
   
   line.segments <- knn.cl.lines %>% select(cl.from, cl.to)
-  nodes$cl <- as.numeric((as.character(nodes$cl)))
+  nodes$cl <- as.character(nodes$cl)
   line.segments <- left_join(line.segments,select(nodes, x, y, cl), by=c("cl.from"="cl"))
   line.segments <- left_join(line.segments,select(nodes, x, y, cl), by=c("cl.to"="cl"))
   colnames(line.segments) <- c("cl.from", "cl.to", "x.from", "y.from", "x.to", "y.to")
