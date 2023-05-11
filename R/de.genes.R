@@ -612,8 +612,8 @@ get_de_truncate_score_sum <- function(gene.score, th=20)
 #' \item{up.num} The number of up-regulated genes
 #' \item{down.num} The number of down-regulated genes
 #' \item{genes} Gene symbols for differentially expressed genes.
-#' \item{up.genes} Gene symbols for up-regulated genes.
-#' \item{down.genes} Gene symbols for down-regulated genes.
+#' \item{up.genes} A named vector, names are gene symbols for up-regulated genes, and the values are -log10 adjusted Pvalues.
+#' \item{down.genes} A named vector, names are gene symbols for down-regulated genes, and the values are -log10 adjusted Pvalues.
 #' \item{de.df} The df used as input, filtered for differentially expressed genes.
 #' }
 #' 
