@@ -27,19 +27,19 @@ get_knn_graph <- function(rd.dat, cl, ref.cells=row.names(rd.dat),method="Annoy.
   knn.df$knn.cl = cl[ref.cells[knn.df$ref_id]]
   knn.df = knn.df %>% filter(k!=1)
   
-  cl.knn.dist.stats = knn.df %>%  group_by(cl) %>% summarize(med=median(dist),mad=mad(dist))
+  cl.knn.dist.stats = knn.df %>%  group_by(cl) %>% summarise(med=median(dist),mad=mad(dist))
   cl.knn.dist.stats =   cl.knn.dist.stats %>% mutate(th=med + knn.outlier.th * mad)
   th.med = median(cl.knn.dist.stats$th)
   cl.knn.dist.stats =   cl.knn.dist.stats %>% mutate(th=pmax(th, th.med))
   
-  outlier.df=knn.df %>% left_join(cl.knn.dist.stats[,c("cl","th")]) %>% group_by(sample_id) %>% summarize(outlier = sum(dist > th))
+  outlier.df=knn.df %>% left_join(cl.knn.dist.stats[,c("cl","th")]) %>% group_by(sample_id) %>% summarise(outlier = sum(dist > th))
 
   outlier = outlier.df %>% filter(outlier/(k-1)>outlier.frac.th) %>% pull(sample_id)
   knn.df = knn.df %>% filter(!sample_id %in% outlier)
   knn.cl.df = knn.df %>% group_by(cl, knn.cl) %>% summarise(Freq=n())
   colnames(knn.cl.df)[1:2]=c("cl.from","cl.to")  
-  from.size = knn.cl.df %>% group_by(cl.from) %>% summarize(from.total=sum(Freq))
-  to.size = knn.cl.df %>% group_by(cl.to) %>% summarize(to.total=sum(Freq))
+  from.size = knn.cl.df %>% group_by(cl.from) %>% summarise(from.total=sum(Freq))
+  to.size = knn.cl.df %>% group_by(cl.to) %>% summarise(to.total=sum(Freq))
   total = sum(knn.cl.df$Freq)
   knn.cl.df = knn.cl.df %>% left_join(from.size) %>% left_join(to.size)
   knn.cl.df = knn.cl.df %>% mutate(odds = Freq/(from.total*as.numeric(to.total)/total))
