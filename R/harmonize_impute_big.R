@@ -6,7 +6,7 @@ recompute_knn <- function(comb.dat, cl, ref.sets, select.sets, cl.group.list, cl
       if(length(cl.group)<=1){
         next
       }
-      markers = cl.group.markers[[l]]      
+      knn.genes = cl.group.markers[[l]]      
       select.cl = cl[cl %in% cl.group]      
       group.cl = setNames(cl.group[as.character(select.cl)], names(select.cl))
       tmp.ref.list = sapply(ref.sets, function(x){
@@ -17,7 +17,7 @@ recompute_knn <- function(comb.dat, cl, ref.sets, select.sets, cl.group.list, cl
         sample(x, min(length(x),sample.size))
       })
       select.cells=names(select.cl)
-      knn.comb = compute_knn(comb.dat, select.genes=markers, ref.list=tmp.ref.list, select.sets=select.sets, select.cells=select.cells,cross.knn.method=cross.knn.method)
+      knn.comb = compute_knn(comb.dat, select.genes=knn.genes, ref.list=tmp.ref.list, select.sets=select.sets, select.cells=select.cells,cross.knn.method=cross.knn.method)
       knn.result.list[[l]] = list(select.genes=markers, knn=knn.comb)      
     }
     return(knn.result.list)
@@ -68,69 +68,107 @@ impute_knn_global_big <- function(comb.dat, split.results, select.genes, select.
           org.rd.dat.list[[x]] = rd.result
         }
     }
-    for(x in names(ref.list))
+    for(ref.set in names(ref.list))
       {
-        rd.dat = org.rd.dat.list[[x]]
+        rd.dat = org.rd.dat.list[[ref.set]]
         rd.dat = rd.dat[row.names(rd.dat) %in% select.cells,]
-        ref.cells = ref.list[[x]]
-        if(is.null(impute.dat.list[[x]])){          
-          impute.dat.list[[x]] = create_big.dat_fbm(col.id=select.cells, row.id=select.genes,backingfile=paste0("impute_data_",x))
+        ref.cells = ref.list[[ref.set]]
+        if(is.null(impute.dat.list[[ref.set]])){          
+          impute.dat.list[[ref.set]] = create_big.dat_fbm(col.id=select.cells, row.id=select.genes,backingfile=paste0("impute_data_",ref.set))
         }
         knn = get_knn_batch(rd.dat, rd.dat[ref.cells,], method="Annoy.Euclidean", mc.cores=mc.cores, batch.size=50000,k=k,transposed=FALSE,clear.index=TRUE)        
-        impute.dat.big = impute.dat.list[[x]]
+        impute.dat.big = impute.dat.list[[ref.set]]
         impute_dat_big(impute.dat.big, comb.dat$dat.list[[x]], knn, ref.cells, select.genes)
-        ###cross-modality Imputation based on nearest neighbors in each iteraction of clustering using anchoring genes or genes shown to be differentiall expressed. 
-        for(x in names(split.results)){      
-          result = split.results[[x]]
-          impute.genes = intersect(c(result$markers,result$select.genes), select.genes)
-          cat("split group",x,length(impute.genes),"\n")
-          cl = result$cl
-          knn = result$knn
-          for(ref.set in intersect(names(result$ref.list),names(ref.list))){
-            tmp.cells = row.names(knn)
-            query.cells = intersect(tmp.cells[comb.dat$meta.df[tmp.cells,"platform"] != ref.set], select.cells)
-            select.cols = comb.dat$meta.df[comb.dat$all.cells[knn[1,]],"platform"] == ref.set
-            if(sum(select.cols)==0){
-              next
-            }
-            if(length(query.cells)==0){
-              next
-            }
-            select.knn = knn[query.cells,select.cols,drop=F]
-            impute_dat_big(impute.dat.big, big.dat=impute.dat.big, knn=knn, ref.cells=comb.dat$all.cells, select.genes=impute.genes)        
-          }
-        }
+        ###cross-modality Imputation based on nearest neighbors in each iteraction of clustering using anchoring genes or genes shown to be differentiall expressed.
       }
     
+    for(x in names(split.results)){      
+      result = split.results[[x]]
+      impute.genes = intersect(c(result$impute.genes,result$knn.genes), select.genes)
+      cat("split group",x,length(impute.genes),"\n")
+      cl = result$cl
+      for(ref.set in names(ref.list)){
+        impute.dat.big=impute.dat.big.list[[ref.set]]
+        ref.cells=result$ref.list[[ref.set]]                      
+        tmp.cells = row.names(knn)
+        query.cells = intersect(tmp.cells[comb.dat$meta.df[tmp.cells,"platform"] != ref.set], select.cells)
+        select.cols = comb.dat$meta.df[comb.dat$all.cells[knn[1,]],"platform"] == ref.set
+        if(sum(select.cols)==0){
+          next
+        }
+        if(length(query.cells)==0){
+          next
+        }
+        select.knn = knn[query.cells,select.cols,drop=F]
+        impute_dat_big(impute.dat.big, big.dat=impute.dat.big, knn=knn, ref.cells=ref.cells,select.genes=impute.genes)                           
+      }
+    }       
     return(impute.dat.list)
   }
 
-impute_cross_big <- function(split.results, ref.big.dat, query.big.dat, query.cells= query.big.dat$col_id,ref.cells= ref.big.dat$col_id, impute.genes = ref.big.dat$row_id, prefix=format(Sys.time(), '%Y_%m_%d.%H.%M'),k=15,method = "Annoy.Cosine", mc.cores=10, clear.index=TRUE)
+impute_cross_big <- function(comb.dat, impute.dat.big, split.results, select.cells, ref.sets=names(impute.dat.list),select.genes=impute.dat.list[[1]]$row_id)
   {
-    impute.dat.big = create_big.dat_fbm(col.id=query.cells, row.id=impute.genes,backingfile=paste0("impute_data_",prefix))
-    for(g in names(split.results)){
-      result = split.results[[g]]
-      tmp.cl=result$cl
-      select.impute.genes = intersect(result$markers,impute.genes)
-      
-      knn.genes = result$select.genes
-      if(length(select.impute.genes) < 5 | length(knn.genes)<5){
+    for(x in names(split.results)){      
+      result = split.results[[x]]
+      impute.genes = intersect(c(result$impute.genes,result$knn.genes), select.genes)
+      cat("split group",x,length(impute.genes),"\n")
+      cl = result$cl
+      if(length(result$impute.genes)==0){
         next
       }
-      cat("split group",g,length(select.impute.genes),"\n")
-      select.ref.cells = intersect(names(tmp.cl), ref.cells)     
-      select.ref.cells = sample_cells(tmp.cl[select.ref.cells], 100)
-      select.query.cells= intersect(names(tmp.cl), query.cells)
-      if(length(select.query.cells)==0){
+      if(!"knn" %in% names(result)){
         next
       }
-      ref.dat = get_logNormal(ref.big.dat, select.ref.cells, knn.genes)
-      knn=get_knn_batch_big(query.big.dat, ref.dat = ref.dat, select.cells=select.query.cells, k=k, method = method, mc.cores=mc.cores, clear.index=clear.index)
-      
-      split.results[[g]]$knn = knn
-      split.results[[g]]$ref.cells = ref.cells      
-      impute_dat_big(impute.dat.big, big.dat=ref.big.dat, knn=knn, ref.cells=select.ref.cells,select.genes=select.impute.genes)        
+      for(ref.set in ref.sets){
+        knn = result$knn        
+        tmp.cells = row.names(knn)
+        query.cells = intersect(tmp.cells[comb.dat$meta.df[tmp.cells,"platform"] != ref.set], select.cells)
+        select.cols = comb.dat$meta.df[comb.dat$all.cells[knn[1,]],"platform"] == ref.set
+        if(sum(select.cols)==0){
+          next
+        }
+        if(length(query.cells)==0){
+          next
+        }
+        select.knn = knn[query.cells,select.cols,drop=F]
+        impute_dat_big(impute.dat.big, big.dat=impute.dat.big, knn=select.knn, ref.cells=comb.dat$all.cells,select.genes=impute.genes)                           
+      }
     }
-    return(list(impute.dat.big=impute.dat.big,split.results=split.results))
+    return(impute.dat.big)
   }
 
+get_impute_knn <- function(comb.dat, split.results, ref.set, map.sets,k=15, method="Annoy.Cosine",mc.cores=10)
+  {
+    for(g in names(split.results)){
+      print(g)
+      tmp.cl=split.results[[g]]$cl
+      knn.genes = split.results[[g]]$knn.genes
+      select.cells = names(tmp.cl)
+      cells.list = split(select.cells, comb.dat$meta.df[select.cells, "platform"])
+      ref.cells = sample_cells(tmp.cl[cells.list[[ref.set]]], 100)
+      if(length(ref.cells)<20){
+        next
+      }
+      idx = match(ref.cells, comb.dat$all.cells)
+      map.cells= unlist(cells.list[!names(cells.list)==ref.set])
+      if(length(map.cells)==0){
+        split.results[[g]]=NULL
+        next
+      }
+      ref.dat = get_logNormal(comb.dat$dat.list[[ref.set]], ref.cells, knn.genes)
+      knn.list = list()
+      for(x in map.sets){
+        tmp.cells= intersect(map.cells, comb.dat$dat.list[[x]]$col_id)
+        if(length(tmp.cells)>0){
+          knn=get_knn_batch_big(comb.dat$dat.list[[x]], ref.dat = ref.dat, select.cells=tmp.cells, k=k, method = method, mc.cores=mc.cores, clear.index=TRUE)    
+          knn.list[[x]] = matrix(idx[knn], nrow=nrow(knn), dimnames=list(row.names(knn), NULL))
+        }
+      }
+      knn = do.call("rbind",knn.list)
+      split.results[[g]]$knn = knn
+      ref.list = list(ref.cells)
+      names(ref.list)=ref.set
+      split.results[[g]]$ref.list=ref.list     
+    }
+    return(split.results)
+  }

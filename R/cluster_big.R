@@ -228,6 +228,7 @@ iter_clust_big<- function(big.dat=NULL,
                           mc.cores=10,
                           overwrite=TRUE,
                           verbose=FALSE,
+                          jaccard.sampleSize=300000,
                           ...)
   {
     if(!is.null(prefix)) {
@@ -252,7 +253,7 @@ iter_clust_big<- function(big.dat=NULL,
         load(outfile)       
       }
       else{
-        result=onestep_clust_big(big.dat=big.dat, select.cells=select.cells, prefix=prefix,method=select.method, counts=counts, sampleSize= sampleSize,mc.cores=mc.cores,verbose=verbose,...)
+        result=onestep_clust_big(big.dat=big.dat, select.cells=select.cells, prefix=prefix,method=select.method, counts=counts, sampleSize= sampleSize,mc.cores=mc.cores,verbose=verbose,jaccard.sampleSize=jaccard.sampleSize,...)
         if(verbose){
           save(result, file=outfile)
         }
@@ -284,7 +285,7 @@ iter_clust_big<- function(big.dat=NULL,
             rm(norm.dat)
           }
           else{
-            tmp.result=iter_clust_big(big.dat=big.dat, select.cells=tmp.cells, prefix=tmp.prefix,split.size=split.size,method= method, counts=counts, sampleSize=sampleSize, overwrite=overwrite,mc.cores=mc.cores,verbose=verbose,...)
+            tmp.result=iter_clust_big(big.dat=big.dat, select.cells=tmp.cells, prefix=tmp.prefix,split.size=split.size,method= method, counts=counts, sampleSize=sampleSize, overwrite=overwrite,mc.cores=mc.cores,verbose=verbose,jaccard.sampleSize=jaccard.sampleSize,...)
           }
           gc()
           if(is.null(tmp.result)){
