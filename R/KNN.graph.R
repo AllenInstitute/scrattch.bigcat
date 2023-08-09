@@ -27,19 +27,19 @@ get_knn_graph <- function(rd.dat, cl, ref.cells=row.names(rd.dat),method="Annoy.
   knn.df$knn.cl = cl[ref.cells[knn.df$ref_id]]
   knn.df = knn.df %>% filter(k!=1)
   
-  cl.knn.dist.stats = knn.df %>%  group_by(cl) %>% summarize(med=median(dist),mad=mad(dist))
+  cl.knn.dist.stats = knn.df %>%  group_by(cl) %>% summarise(med=median(dist),mad=mad(dist))
   cl.knn.dist.stats =   cl.knn.dist.stats %>% mutate(th=med + knn.outlier.th * mad)
   th.med = median(cl.knn.dist.stats$th)
   cl.knn.dist.stats =   cl.knn.dist.stats %>% mutate(th=pmax(th, th.med))
   
-  outlier.df=knn.df %>% left_join(cl.knn.dist.stats[,c("cl","th")]) %>% group_by(sample_id) %>% summarize(outlier = sum(dist > th))
+  outlier.df=knn.df %>% left_join(cl.knn.dist.stats[,c("cl","th")]) %>% group_by(sample_id) %>% summarise(outlier = sum(dist > th))
 
   outlier = outlier.df %>% filter(outlier/(k-1)>outlier.frac.th) %>% pull(sample_id)
   knn.df = knn.df %>% filter(!sample_id %in% outlier)
   knn.cl.df = knn.df %>% group_by(cl, knn.cl) %>% summarise(Freq=n())
   colnames(knn.cl.df)[1:2]=c("cl.from","cl.to")  
-  from.size = knn.cl.df %>% group_by(cl.from) %>% summarize(from.total=sum(Freq))
-  to.size = knn.cl.df %>% group_by(cl.to) %>% summarize(to.total=sum(Freq))
+  from.size = knn.cl.df %>% group_by(cl.from) %>% summarise(from.total=sum(Freq))
+  to.size = knn.cl.df %>% group_by(cl.to) %>% summarise(to.total=sum(Freq))
   total = sum(knn.cl.df$Freq)
   knn.cl.df = knn.cl.df %>% left_join(from.size) %>% left_join(to.size)
   knn.cl.df = knn.cl.df %>% mutate(odds = Freq/(from.total*as.numeric(to.total)/total))
@@ -52,78 +52,82 @@ get_knn_graph <- function(rd.dat, cl, ref.cells=row.names(rd.dat),method="Annoy.
 
 
 #' @param knn.cl.df output of KNN.graph. Dataframe providing information about the cluster call of nearest neighbours of cells within a cluster. required columns: "cl.from" = cluster_id of edge origin, "cl.to" = cluster_id of edge destination, "Freq" = , "cl.from.total" = total nr of neigbours (above threshold) from cluster of origin, "cl.to.total" = total nr of neigbours (above threshold) from destination cluster, "frac" = fraction of total edge outgoing. 
-#'
 #' @param cl.center.df dataframe containing metadata and coordinates for plotting cluster centroids. Required columns: "x" = x coordinate, "y" = y coordinate, "cl" = unique cluster id that should match "cl.to" and "cl.from" columns in knn.cl.df, "cluster_color","size" = nr of cells in cluster 
 #' @param out.dir location to write plotting files to
-#' @param node.label Label to identify plotted nodes.
+#' @param prefix A character string to prepend to the filename
+#' @param node.label Label to identify plotted nodes. Default is "cluster_id"
 #' @param exxageration exxageration of edge width. Default is 1 (no exxageration)
-#' @param curved Wheter edges should be curved or not. Default is TRUE.
+#' @param curved Whether edges should be curved or not. Default is TRUE.
 #' @param plot.parts output of intermediate files. default is FALSE.
 #' @param plot.hull plot convex around cell type neighbourhood. Provide neighbourhood_id's that need to be plotted
 #' @param node.dodge whether or not nodes are allowed to overlap. Default is false 
-#' @param plot.height 
-#' @param plot.width 
-#' @param label.size 
-#' @param max_size 
-#' @param node_trans options are the same as ggplot2 options for scale_size_area trans; "asn", "atanh", "boxcox", "date", "exp", "hms", "identity", "log", "log10", "log1p", "log2", "logit", "modulus", "probability", "probit", "pseudo_log", "reciprocal", "reverse", "sqrt" and "time". When no trans needed choose "identity", if large variability in cluster_size "sqrt" is a good choice.
-#' @param return.list true or false, whether plotting components are, besides saving, returned as r objects
-#' @param highlight_nodes vector of cluster id's that will be highlighted by adding border to node
-#' @param highlight_color color used to highlight node
-#' @param highlight_width stroke width used to highlight node
-#' @param highlight_labsize label size for highlighted nodes
+#' @param plot.height height of pdf in cm. Default is 25cm
+#' @param plot.width width of pdf in cm. Default is 25cm 
+#' @param label.size point size of plotted node labels. Default is 5pts
+#' @param max_size maximum size of node. Default is 10pt 
+#' @param label_repel whether to move labels away from node so they do not overlap. Default is FALSE.
+#' @param node_trans transformation of node size. See ggplot::scale_size_area(trans=node_trans). Default is "sqrt".
+#' @param return.list Whether to return list of independent plotting layers. Useful for replotting only part of the constellation
+#' @param highlight_nodes list of node id's (matching cl.center.df) to highlight.
+#' @param highlight_color Color of stroke around highlighted node. Default is red
+#' @param highlight_width Width of stroke around highlighted node. Default is 1
+#' @param highlight_labsize Size of label for highlighted nodes.
 #' @param edge_mark_list which edges to color different selected by node using the cl value which is not necessarily the node label
-#' @param edge_marking  options are to "dim" or "highlight" highlight edges provided in edge_mark_list
-#' @param bg.edges which edges to dim selected by node using the cl value which is not necessarily the node label. Choose one of fg.edges or bg.edges. Choosing both might lead to unexpected behaviour.
-#'
-#'
+#' @param edge_marking = c("dim", "highlight"),
+#' @param fg.alpha alpha to use for edges that are most dark. Default = 0.4 
+#' @param bg.alpha alpha to use for edges that are more faint. Default = 0.1
+#' @param coord_fixed Cartesian coordinates with fixed "aspect ratio". See ggplot::coord_fixed. Default is TRUE
+#'  
+#' 
 #' @example_data:
 #'  
 #' knn.cl.df <- read.csv("data/Constellation_example/knn.cl.df.csv")
 #' cl.center.df <- read.csv("data/Constellation_example/cl.center.df.csv", row.names=1)
 #' 
 #' 
-#' @usage plotting.MGE.constellation <- plot_constellation(knn.cl.df = knn.cl.df, cl.center.df = cl.center.df, out.dir = "data/Constellation_example/plot", node.dodge=TRUE, plot.hull=c(1,2)) 
+#' @usage plotting.MGE.constellation <- plot_constellation(knn.cl.df = knn.cl.df, cl.center.df = cl.center.df, out.dir = "data/Constellation_example/plot", node.dodge=TRUE, plot.hull=c(1,2), label_repel=TRUE) 
 
-plot_constellation <- function(knn.cl.df, 
-                               cl.center.df, 
-                               out.dir, 
-                               node.label="cluster_id", 
-                               exxageration=2, 
-                               curved = TRUE, 
-                               plot.parts=FALSE, 
-                               plot.hull = NULL, 
-                               plot.height=25, 
-                               plot.width=25, 
-                               node.dodge=FALSE, 
-                               label.size=5, 
-                               max_size=10, 
-                               label_repel=FALSE,
-                               node_trans="sqrt",
-                               return.list=F,
-                               highlight_nodes = NULL,
-                               highlight_color = "red",
-                               highlight_width = 1,
-                               highlight_labsize=10 ,
-                               edge_mark_list = NULL,
-                               edge_marking = c("dim","highlight"),
-                               fg.alpha = 0.4,
-                               bg.alpha = 0.1) { 
+
+plot_constellation <- function (knn.cl.df, 
+                                cl.center.df, 
+                                out.dir, 
+                                prefix=format(Sys.time(), "%Y%m%d_%H%M%S"), 
+                                node.label = "cluster_id", 
+                                exxageration = 2, 
+                                curved = TRUE, 
+                                plot.parts = FALSE, 
+                                plot.hull = NULL, 
+                                plot.height = 25, 
+                                plot.width = 25, 
+                                node.dodge = FALSE, 
+                                label.size = 5, 
+                                max_size = 10, 
+                                label_repel = FALSE, 
+                                node_trans = "sqrt", 
+                                return.list = F, 
+                                highlight_nodes = NULL, 
+                                highlight_color = "red", 
+                                highlight_width = 1, 
+                                highlight_labsize = 10, 
+                                edge_mark_list = NULL, 
+                                edge_marking = c("dim", "highlight"), 
+                                fg.alpha = 0.4, 
+                                bg.alpha = 0.1,
+                                coord_fixed= TRUE) {
   
   library(gridExtra)
   library(sna)
   library(Hmisc)
   library(reshape2)
-  #library(ggalt)
   library(ggforce)
   library(dplyr)
-  #library(ggrepel)
   
-  st=format(Sys.time(), "%Y%m%d_%H%M%S_")
-  
-  
-  if(!file.exists(out.dir)){
+  #st = format(Sys.time(), "%Y%m%d_%H%M%S")
+  st=prefix
+  if (!file.exists(out.dir)) {
     dir.create(out.dir)
   }
+  
   ###==== Cluster nodes will represent both cluster.size (width of point) and edges within cluster (stroke of point)
   
   # select rows that have edges within cluster
@@ -153,12 +157,10 @@ plot_constellation <- function(knn.cl.df,
                   label=labels),
               size = label.size)
   
-  
   #+ theme_void()
   #p.nodes
   if (plot.parts == TRUE) {
     ggsave(file.path(out.dir,paste0(st,"nodes.org.pos.pdf")), p.nodes, width = plot.width, height = plot.height, units="cm",useDingbats=FALSE) }
-  
   
   ###==== extract node size/stroke width to replot later without scaling
   g <- ggplot_build(p.nodes)
@@ -257,6 +259,7 @@ plot_constellation <- function(knn.cl.df,
     }
   }
   
+  
   ###==== prepare data for plotting of edges between nodes
   
   ##filter out all edges that are <5% of total for that cluster
@@ -264,9 +267,9 @@ plot_constellation <- function(knn.cl.df,
   knn.cl <- knn.cl.df
   ##from knn.cl data frame remove all entries within cluster edges.
   knn.cl.d <- knn.cl[!(knn.cl$cl.from == knn.cl$cl.to),] 
-  nodes$cl=as.numeric(as.character(nodes$cl))
-  knn.cl.d$cl.from <- as.numeric(as.character(knn.cl.d$cl.from))
-  knn.cl.d$cl.to <- as.numeric(as.character(knn.cl.d$cl.to))
+  nodes$cl=as.character(nodes$cl)
+  knn.cl.d$cl.from <- as.character(knn.cl.d$cl.from)
+  knn.cl.d$cl.to <- as.character(knn.cl.d$cl.to)
   
   knn.cl.d <- left_join(knn.cl.d, select(nodes, cl, node.width), by=c("cl.from"="cl"))
   colnames(knn.cl.d)[colnames(knn.cl.d)=="node.width"]<- "node.pt.from"
@@ -316,7 +319,7 @@ plot_constellation <- function(knn.cl.df,
   ###==== create line segments
   
   line.segments <- knn.cl.lines %>% select(cl.from, cl.to)
-  nodes$cl <- as.numeric((as.character(nodes$cl)))
+  nodes$cl <- as.character(nodes$cl)
   line.segments <- left_join(line.segments,select(nodes, x, y, cl), by=c("cl.from"="cl"))
   line.segments <- left_join(line.segments,select(nodes, x, y, cl), by=c("cl.to"="cl"))
   colnames(line.segments) <- c("cl.from", "cl.to", "x.from", "y.from", "x.to", "y.to")
@@ -423,7 +426,6 @@ plot_constellation <- function(knn.cl.df,
   if (plot.parts == TRUE) {
     write.csv(poly.Edges, file=file.path(out.dir,paste0(st,"poly.edges.csv"))) }
   
-  
   #############################
   ##                         ##
   ##        plotting         ##
@@ -439,7 +441,7 @@ plot_constellation <- function(knn.cl.df,
   #p.edges
   library("data.table")  
   
-
+  
   
   if(!is.null(edge_mark_list)){
     if(edge_marking == "dim"){
@@ -523,8 +525,6 @@ plot_constellation <- function(knn.cl.df,
                       breaks = c(100,1000,10000,100000)) +
       scale_color_identity() +      
       scale_alpha(range = c(bg.alpha, fg.alpha))  
-
-    
     
     # only if highlighting subset of nodes
     if(!is.null(highlight_nodes)){
@@ -549,66 +549,68 @@ plot_constellation <- function(knn.cl.df,
                                        y=y, 
                                        label=.data[[node.label]]),
                                    size = highlight_labsize,
+                                   min.segment.length = Inf) 
+        
+        if(nrow(nodes %>% filter(!(cluster_id %in% highlight_nodes)) )> 0) {
+          
+          plot.all <- plot.all + 
+            geom_text(data = nodes %>% filter(!(cluster_id %in% highlight_nodes)), 
+                      aes(x = x, 
+                          y = y, 
+                          label = .data[[node.label]]), 
+                      size = label.size)
+        }
+        plot.all <- plot.all +
+          theme_void() + 
+          theme(legend.position = "none")
+      }      else {
+        plot.all <- plot.all + 
+          ggrepel::geom_text_repel(data = nodes, 
+                                   aes(x = x, y = y, label = .data[[node.label]]), 
+                                   size = label.size, 
                                    min.segment.length = Inf) + 
-          ggrepel::geom_text_repel(data=nodes %>% filter(!(cluster_id %in% highlight_nodes)),
-                          aes(x=x, 
-                              y=y, 
-                              label=.data[[node.label]]),
-                          size = label.size,
-                          min.segment.length = Inf) +
-          theme_void() +
-          theme(legend.position="none")
-      } else {
-        plot.all <- plot.all +
-          ggrepel::geom_text_repel(data=nodes ,
-                          aes(x=x, 
-                              y=y, 
-                              label=.data[[node.label]]),
-                          size = label.size,
-                          min.segment.length = Inf) +
-          theme_void() +
-          theme(legend.position="none")
+          theme_void() + 
+          theme(legend.position = "none")
       }
-      
-      
-    }  else{
-      
-      if(!is.null(highlight_nodes)){
+    }    else {
+      if (!is.null(highlight_nodes)) {
+        plot.all <- plot.all + geom_text(data = nodes %>% filter(cluster_id %in% highlight_nodes), 
+                                         aes(x = x, 
+                                             y = y, 
+                                             label = .data[[node.label]]), 
+                                         size = highlight_labsize) 
+        if(nrow(nodes %>% filter(!(cluster_id %in% highlight_nodes)) )> 0) {
+          
+          plot.all <- plot.all + 
+            geom_text(data = nodes %>% filter(!(cluster_id %in% highlight_nodes)), 
+                      aes(x = x, 
+                          y = y, 
+                          label = .data[[node.label]]), 
+                      size = label.size)
+        }
         plot.all <- plot.all +
-          geom_text(data=nodes %>% filter(cluster_id %in% highlight_nodes),
-                    aes(x=x, 
-                        y=y, 
-                        label=.data[[node.label]]),
-                    size = highlight_labsize) + 
-          geom_text(data=nodes %>% filter(!(cluster_id %in% highlight_nodes)),
-                    aes(x=x, 
-                        y=y, 
-                        label=.data[[node.label]]),
-                    size = label.size) +
-          theme_void() +
-          theme(legend.position="none")
-      } else{
-        plot.all <- plot.all +
-          geom_text(data=nodes,
-                    aes(x=x, 
-                        y=y, 
-                        label=.data[[node.label]]),
-                    size = label.size) + 
-          theme_void() +
-          theme(legend.position="none") 
+          theme_void() + 
+          theme(legend.position = "none")
       }
-      
-      
-      #plot.all
+      else {
+        plot.all <- plot.all + geom_text(data = nodes, 
+                                         aes(x = x, y = y, label = .data[[node.label]]), 
+                                         size = label.size) + theme_void() + theme(legend.position = "none")
+      }
     }
   }
   
   
+  if(isTRUE(coord_fixed)){
+    plot.all <- plot.all + coord_fixed(ratio=1)
+  }
   
   segment.color = NA
-  
-  if (plot.parts == TRUE) {
-    ggsave(file.path(out.dir,paste0(st,"comb.constellation.pdf")), plot.all, width = plot.width, height = plot.height, units="cm",useDingbats=FALSE) }
+  if (isTRUE(plot.parts)) {
+    ggsave(file.path(out.dir, paste0(st, ".comb.constellation.pdf")), 
+           plot.all, width = plot.width, height = plot.height, 
+           units = "cm", useDingbats = FALSE)
+  }
   
   
   
@@ -617,7 +619,6 @@ plot_constellation <- function(knn.cl.df,
   ##      plot legends       ##
   ##                         ##
   #############################
-  
   
   ### plot node size legend (1)
   plot.dot.legend <- ggplot()+
@@ -641,75 +642,90 @@ plot_constellation <- function(knn.cl.df,
                   label=labels),
               size = label.size)+
     theme_void()
-  dot.size.legend <- cowplot::get_legend(plot.dot.legend)
+  dot.size.legend <- cowplot::get_legend(plot.dot.legend)  
   
   ### plot cluster legend (3)
-  cl.center.df$cluster.label <-  cl.center.df$cluster_label
+  cl.center.df$cluster.label <- cl.center.df$cluster_label
   cl.center.df$cluster.label <- as.factor(cl.center.df$cluster.label)
   label.col <- setNames(cl.center.df$cluster_color, cl.center.df$cluster.label)
   cl.center.df$cluster.label <- as.factor(cl.center.df$cluster.label)
-  leg.col.nr <- min((ceiling(length(cl.center.df$cluster_id)/20)),5)
-  
+  leg.col.nr <- min((ceiling(length(cl.center.df$cluster_id)/20)), 
+                    5)
   cl.center <- ggplot(cl.center.df, 
-                      aes(x=cluster_id, y=cluster_size)) + 
-    geom_point(aes(color=cluster.label))+
-    scale_color_manual(values=as.vector(label.col[levels(cl.center.df$cluster.label)]))+  
-    guides(color = guide_legend(override.aes = list(size = 8), ncol=leg.col.nr))
+                      aes(x = cluster_id, y = cluster_size)) + 
+    geom_point(aes(color = cluster.label)) + 
+    scale_color_manual(values = as.vector(label.col[levels(cl.center.df$cluster.label)])) + 
+    guides(shape = guide_legend(override.aes = list(size = 1)),
+           color = guide_legend(override.aes = list(size = 1)),
+           fill=guide_legend(ncol=leg.col.nr)) +
+    theme(legend.title = element_text(size = 6), 
+          legend.text  = element_text(size = 6),
+          legend.key.size = unit(0.5, "lines"))
   
-  cl.center.legend <- cowplot::get_legend(cl.center)  
-  #plot(cl.center.legend)
+  cl.center.legend <- cowplot::get_legend(cl.center)
   
   
-  ###plot legend line width (2)
-  width.1 <- max(line.segments$frac.from,line.segments$frac.to) 
+  width.1 <- max(line.segments$frac.from, line.segments$frac.to)
   width.05 <- width.1/2
   width.025 <- width.1/4
-  
-  
-  edge.width.data <- tibble(node.width = c(1,1,1), x=c(2,2,2), y=c(5,3.5,2), line.width=c(1,0.5,0.25), fraction=c(100, 50, 25),frac.ex=c(width.1, width.05, width.025))
-  edge.width.data$fraction.ex <- round((edge.width.data$frac.ex*100), digits = 0)
-  
-  poly.positions <- data.frame(id=rep(c(1,2,3), each = 4), x=c(1,1,2,2,1,1,2,2,1,1,2,2), y=c(4.9,5.1,5.5,4.5,3.4,3.6,3.75,3.25,1.9,2.1,2.125,1.875)) 
-  
-  if (exxageration !=1) {
-    edge.width.legend <- ggplot()  +  
-      geom_polygon(data=poly.positions, aes(x=x,y=y, group=id), fill="grey60")+
-      geom_circle(data=edge.width.data, aes(x0=x, y0=y, r=node.width/2), fill="grey80", color="grey80", alpha=0.4)+ 
-      scale_x_continuous(limits=c(0,3)) + 
-      theme_void() +
+  edge.width.data <- tibble(node.width = c(1, 1, 1), 
+                            x = c(2, 2, 2), 
+                            y = c(5, 3.5, 2), 
+                            line.width = c(1, 0.5, 0.25), 
+                            fraction = c(100, 50, 25), 
+                            frac.ex = c(width.1, width.05, width.025))
+  edge.width.data$fraction.ex <- round((edge.width.data$frac.ex * 
+                                          100), digits = 0)
+  poly.positions <- data.frame(id = rep(c(1, 2, 3), each = 4), 
+                               x = c(1, 1, 2, 2, 1, 1, 2, 2, 1, 1, 2, 2), 
+                               y = c(4.9, 5.1, 5.5, 4.5, 3.4, 3.6, 3.75, 3.25, 1.9, 2.1, 2.125, 1.875))
+  if (exxageration != 1) {
+    edge.width.legend <- ggplot() + geom_polygon(data = poly.positions, 
+                                                 aes(x = x, y = y, group = id), 
+                                                 fill = "grey60") + 
+      geom_circle(data = edge.width.data, aes(x0 = x, y0 = y, 
+                                              r = node.width/2), 
+                  fill = "grey80", color = "grey80", 
+                  alpha = 0.4) + 
+      scale_x_continuous(limits = c(0,3)) + 
+      theme_void() + 
       coord_fixed() + 
-      geom_text(data=edge.width.data, aes(x= 2.7, y=y, label=fraction.ex, hjust=0, vjust=0.5)) + 
-      annotate("text", x = 2, y = 6, label = "Fraction of edges \n to node") } 
-  else { edge.width.legend <- ggplot()  +  
-    geom_polygon(data=poly.positions, aes(x=x,y=y, group=id), fill="grey60")+
-    geom_circle(data=edge.width.data, aes(x0=x, y0=y, r=node.width/2), fill="grey80", color="grey80", alpha=0.4)+ 
-    scale_x_continuous(limits=c(0,3)) + 
-    theme_void() +coord_fixed() + 
-    geom_text(data=edge.width.data, aes(x= 2.7, y=y, label=fraction, hjust=0, vjust=0.5)) + 
-    annotate("text", x = 2, y = 6, label = "Fraction of edges \n to node")}
-  
-  
-  #############################
-  ##                         ##
-  ##      save elements      ##
-  ##                         ##
-  #############################
-  
-  
-  
-  layout_legend <- rbind(c(1,3,3,3,3),c(2,3,3,3,3))  
-  
+      geom_text(data = edge.width.data, aes(x = 2.7, y = y, label = fraction.ex, hjust = 0, vjust = 0.5)) + 
+      annotate("text", x = 2, y = 6, label = "Fraction of edges \n to node")
+  }  else {
+    edge.width.legend <- ggplot() + geom_polygon(data = poly.positions, 
+                                                 aes(x = x, y = y, group = id), fill = "grey60") + 
+      geom_circle(data = edge.width.data, aes(x0 = x, y0 = y, r = node.width/2), 
+                  fill = "grey80", color = "grey80", 
+                  alpha = 0.4) + 
+      scale_x_continuous(limits = c(0,3)) + 
+      theme_void() + 
+      coord_fixed() + 
+      geom_text(data = edge.width.data, aes(x = 2.7, y = y, label = fraction, hjust = 0, vjust = 0.5)) + 
+      annotate("text", x = 2, y = 6, label = "Fraction of edges \n to node")
+  }
+  layout_legend <- rbind(c(1, 3, 3, 3, 3),
+                         c(2, 3, 3, 3, 3))
   if (plot.parts == TRUE) {
-    ggsave(file.path(out.dir,paste0(st,"comb.LEGEND.pdf")),gridExtra::marrangeGrob(list(dot.size.legend,edge.width.legend,cl.center.legend),nrow = 3, ncol=6, layout_matrix=layout_legend),height=20,width=20,useDingbats=FALSE)  }
-  
-  
-  g2 <- gridExtra::arrangeGrob(grobs=list(dot.size.legend,edge.width.legend,cl.center.legend), layout_matrix=layout_legend)
-  
-  
-  ggsave(file.path(out.dir,paste0(st,"constellation.pdf")),marrangeGrob(list(plot.all,g2),nrow = 1, ncol=1),width = plot.width, height = plot.height, units="cm",useDingbats=FALSE)
-  
-  if(return.list==TRUE){
-    return(list(constellation = plot.all, edges.df = poly.Edges, nodes.df = nodes))}
+    ggsave(file.path(out.dir, paste0(st, ".comb.LEGEND.pdf")), 
+           gridExtra::marrangeGrob(list(dot.size.legend, 
+                                        edge.width.legend, 
+                                        cl.center.legend), 
+                                   #nrow = 2, ncol = 5, 
+                                   layout_matrix = layout_legend,
+                                   top=NULL), 
+           height = 20, width = 20, useDingbats = FALSE)
+  }
+  g2 <- gridExtra::arrangeGrob(grobs = list(dot.size.legend, 
+                                            edge.width.legend, cl.center.legend), layout_matrix = layout_legend)
+  ggsave(file.path(out.dir, paste0(st, ".constellation.pdf")), 
+         gridExtra::marrangeGrob(list(plot.all, g2), nrow = 1, ncol = 1,top=NULL), 
+         width = plot.width, height = plot.height, units = "cm", 
+         useDingbats = FALSE)
+  if (return.list == TRUE) {
+    return(list(constellation = plot.all, edges.df = poly.Edges, 
+                nodes.df = nodes))
+  }
 }
 
 
