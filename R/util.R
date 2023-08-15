@@ -718,7 +718,7 @@ get_cl_stats <- function(mat,
                          cl, 
                          stats = c("sums","means","medians","present","sqr_sums","sqr_means"),
                          low.th=1,
-                         parallel = c(FALSE,TRUE),
+                         parallel = FALSE,
                          mc.cores = 1,...)
 {
   if(!is.factor(cl)){
@@ -773,7 +773,7 @@ get_cl_stats <- function(mat,
         
       }
     } else { 
-      if (parallel) { #sparse non-transpose parallel
+      if (isTRUE(parallel)) { #sparse non-transpose parallel
         if (stats == "sums") {
           result=rcpp_get_cl_sums_RcppParallel(mat, cl)
         } else if (stats == "means") {
@@ -811,7 +811,7 @@ get_cl_stats <- function(mat,
     }
   } else {
     if (transpose) {
-      if (parallel) {#dense transpose parallel        
+      if (isTRUE(parallel)) {#dense transpose parallel        
         if (stats == "sums") { 
           result=rcpp_get_cl_sums_RcppParallel_transpose_dense(mat, cl)
         } else if (stats == "means") {
@@ -847,7 +847,7 @@ get_cl_stats <- function(mat,
         }
       }
     } else {
-      if (parallel) { #dense non-transpose parallel
+      if (isTRUE(parallel)) { #dense non-transpose parallel
         
         if (stats == "sums") {
           result=rcpp_get_cl_sums_RcppParallel_dense(mat, cl)
