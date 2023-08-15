@@ -163,7 +163,7 @@ plot_RD_meta <- function(rd.dat, meta, meta.col=NULL,show.legend=TRUE, cex=0.15,
   library(ggplot2)
   rd.dat$meta = meta
   p=ggplot(rd.dat, aes(Dim1, Dim2)) 
-  if(isTrue(raster)){
+  if(isTRUE(raster)){
     p = p + ggrastr::rasterise(geom_point(aes(color=meta),size=cex), dpi=dpi)
   } else{ 
     p = p + geom_point(aes(color=meta),size=cex)
@@ -242,7 +242,7 @@ plot_RD_gene <- function(rd.dat, norm.dat, genes, cex=0.15, raster=F, dpi=300)
     for(g in genes){
       rd.dat$expr = norm.dat[g,row.names(rd.dat)]
       p=ggplot(rd.dat, aes(Dim1, Dim2)) 
-      if(isTrue(raster)){
+      if(isTRUE(raster)){
         p = p + ggrastr::rasterise(geom_point(aes(color=expr),size=cex), dpi=dpi)
       } else{ 
         p = p + geom_point(aes(color=expr),size=cex)
