@@ -130,6 +130,13 @@ get_knn_batch <- function(dat, ref.dat, k, method="cor", dim=NULL, batch.size, m
     return(results)
   }
 
+knn_cor <- function(ref.dat, query.dat, k = 15)
+  {
+                                        
+    sim = cor(as.matrix(query.dat), as.matrix(ref.dat))
+    sim[is.na(sim)] = 0
+    return(sim_knn(sim, k=k))
+  }
 
 
 #' Get KNN
@@ -143,7 +150,8 @@ get_knn_batch <- function(dat, ref.dat, k, method="cor", dim=NULL, batch.size, m
 #' @return
 #' @export
 #'
-#' @examples
+                                        #' @examples
+
 get_knn <- function(dat, ref.dat, k, method ="cor", dim=NULL,index=NULL, build.index=FALSE, transposed=TRUE, return.distance=FALSE, ntrees=100)
   {
     if(transposed){
@@ -159,31 +167,40 @@ get_knn <- function(dat, ref.dat, k, method ="cor", dim=NULL,index=NULL, build.i
       }
       dat = Matrix::t(dat)
     }
+    if(method %in% c("Euclidean","Cosine")){
+      build.index=FALSE
+      index=NULL
+    }
     if(method=="RANN"){
       knn.result = RANN::nn2(ref.dat, dat, k=k)
     }
-    else if(method %in% c("Annoy.Euclidean", "Annoy.Cosine","cor")){
-      library(BiocNeighbors)      
+    else if(method %in% c("Annoy.Euclidean", "Annoy.Cosine","cor","Cosine")){
+      library(BiocNeighbors)
       if(is.null(index)){
         if(method=="cor"){
           ref.dat = ref.dat - Matrix::rowMeans(ref.dat)
           ref.dat = l2norm(ref.dat,by = "row")
         }
-        if (method=="Annoy.Cosine"){
+        if (method %in% c("Annoy.Cosine","Cosine")){
           ref.dat = l2norm(ref.dat,by = "row")
         }
         if(build.index){
           index= buildAnnoy(ref.dat, ntrees=ntrees)
         }
       }
-      if (method=="Annoy.Cosine"){
+      if (method %in% c("Annoy.Cosine","Cosine")){
         dat = l2norm(dat,by="row")
-      }
-      if (method=="cor"){
+      } 
+      if (method %in% c("Annoy.cor","cor")){
         dat = dat - Matrix::rowMeans(dat)
         dat = l2norm(dat,by = "row")
       }
-      knn.result = queryAnnoy(X= ref.dat, query=dat, k=k, precomputed = index)
+      if (method %in% c("Annoy.Cosine","Annoy.Euclidean","Annoy.cor")){
+        knn.result = queryAnnoy(X= ref.dat, query=dat, k=k, precomputed = index)
+      }
+      else if(method %in% c("Cosine", "Euclidean","cor")){
+        knn.result = queryKNN(X= ref.dat, query=dat, k=k)
+      }
     }
     else if(method == "CCA"){
       mat3 = crossprod(ref.dat, dat)
@@ -237,8 +254,10 @@ knn_combine <- function(result.1, result.2)
 prepare_harmonize_big <- function(dat.list, meta.df=NULL, cl.list=NULL, cl.df.list = NULL, de.param.list=NULL, de.genes.list=NULL, rename=TRUE)
   {
     common.genes = dat.list[[1]]$row_id
-    for(x in 2:length(dat.list)){
-      common.genes= intersect(common.genes, dat.list[[x]]$row_id)
+    if(length(dat.list)>1){
+      for(x in 2:length(dat.list)){
+        common.genes= intersect(common.genes, dat.list[[x]]$row_id)
+      }
     }
     if(rename){
       for(x in names(dat.list)){
@@ -359,7 +378,6 @@ build_annoy_index <- function(ref.dat, knn.method, transposed=TRUE,ntrees=50)
     gc()
     return(index)
   }
-
 
 compute_knn <- function(comb.dat, select.genes, ref.list, ref.dat.list=NULL, select.sets=names(comb.dat$dat.list), select.cells=comb.dat$all.cells, k=15, cross.knn.method=c("Annoy.Cosine","cor"), self.knn.method=c("Annoy.Cosine"), block.size=10000, mc.cores=1)
   {    
@@ -491,76 +509,81 @@ compute_knn <- function(comb.dat, select.genes, ref.list, ref.dat.list=NULL, sel
 ##' @param ... 
 ##' @return 
 ##' @author Zizhen Yao
-knn_joint <- function(comb.dat, ref.sets=names(comb.dat$dat.list), select.sets= names(comb.dat$dat.list), merge.sets=ref.sets, select.cells=comb.dat$all.cells, select.genes=NULL,cross.knn.method="Annoy.Cosine", self.knn.method = "Annoy.Euclidean", method="leiden", k=15,  sample.size = 50000, jaccard.sampleSize = 200000, cl.sample.size = 100, block.size = 10000, verbose=TRUE,mc.cores=1,rm.eigen=NULL, rm.th=0.7,max.dim=20,rm.genes=NULL,...)
+knn_joint <- function(comb.dat, joint.rd.dat=NULL, ref.sets=names(comb.dat$dat.list), select.sets= names(comb.dat$dat.list), merge.sets=ref.sets, select.cells=comb.dat$all.cells, select.genes=NULL,cross.knn.method="Annoy.Cosine", self.knn.method = "Annoy.Euclidean", method="leiden", k=15,  sample.size = 50000, jaccard.sampleSize = 200000, cl.sample.size = 100, block.size = 10000, verbose=TRUE,mc.cores=1,rm.eigen=NULL, rm.th=0.7,max.dim=20,rm.genes=NULL,...)
 {
-  if(length(select.cells) < block.size){
-    mc.cores=1
-  }
   select.cells = comb.dat$all.cells[comb.dat$all.cells %in% select.cells]
   cat("Number of select cells", length(select.cells), "\n")
   cells.list = split(select.cells, comb.dat$meta.df[select.cells, "platform"])[select.sets]
-  if(length(select.cells) < sample.size){
-    ref.list = cells.list[ref.sets]
-  }
-  else{
-    ref.list =  sample_sets_list(cells.list[ref.sets], comb.dat$cl.list[ref.sets], sample.size=sample.size, cl.sample.size = cl.sample.size)
-    ref.list = sapply(ref.list, function(x){
-      ref.cells=sample(x, min(sample.size, length(x)))
-      ref.cells = comb.dat$all.cells[comb.dat$all.cells %in% ref.cells]
-    },simplify=F)
-  }
+  ref.list = cells.list[ref.sets]
   ref.sets = ref.sets[sapply(ref.list,length) >= sapply(comb.dat$de.param.list[ref.sets], function(x)x$min.cells)]
   if(length(ref.sets)==0){
     return(NULL)
   }
   ref.list = ref.list[ref.sets]
-  ###Select genes for joint analysis
-  cat("Get ref.dat.list\n")
-  if(comb.dat$type=="mem"){
-    ref.dat.list = sapply(ref.sets, function(ref.set){
-      ref.dat= comb.dat$dat.list[[ref.set]]
-      ref.dat= ref.dat[!row.names(ref.dat) %in% rm.genes, ref.list[[ref.set]],drop=FALSE]
-    },simplify=F)
-  }
+  if(!is.null(joint.rd.dat)){
+      ref.cells=unlist(ref.list)
+      knn.comb=get_knn(dat=joint.rd.dat[select.cells,], ref.dat = joint.rd.dat[ref.cells,], k=k, method = self.knn.method, transposed=FALSE)
+      result = knn_jaccard_clust(knn.comb,prune=1/(ncol(knn.comb)-1), method=method)
+    }
   else{
-    ref.dat.list = sapply(ref.sets, function(ref.set){
-      ref.dat=get_logNormal(comb.dat$dat.list[[ref.set]], ref.list[[ref.set]])
-      ref.dat[!row.names(ref.dat) %in% rm.genes,,drop=FALSE]
-    },simplify=F)
-  }
-  if(is.null(select.genes)){
-    select.genes = select_joint_genes(comb.dat, ref.dat.list = ref.dat.list,select.cells=select.cells, max.dim= max.dim,rm.eigen=rm.eigen, rm.th=rm.th)
-  }
-  if(length(select.genes) < 20){
-    return(NULL)
-  }
-  ref.dat.list = sapply(ref.dat.list, function(ref.dat){
-    tmp.genes = intersect(select.genes, row.names(ref.dat))
-    tmp = Matrix::colSums(ref.dat[tmp.genes,]) == 0
-    if(sum(tmp)>0){
-      ref.dat[,!tmp,drop=F]
+    if(length(select.cells) < block.size){
+      mc.cores=1
+    }
+    if(length(select.cells) >= sample.size){
+      ref.list =  sample_sets_list(cells.list[ref.sets], comb.dat$cl.list[ref.sets], sample.size=sample.size, cl.sample.size = cl.sample.size)
+      ref.list = sapply(ref.list, function(x){
+        ref.cells=sample(x, min(sample.size, length(x)))
+        ref.cells = comb.dat$all.cells[comb.dat$all.cells %in% ref.cells]
+      },simplify=F)
+    }
+    ###Select genes for joint analysis
+    cat("Get ref.dat.list\n")
+    if(comb.dat$type=="mem"){
+      ref.dat.list = sapply(ref.sets, function(ref.set){
+        ref.dat= comb.dat$dat.list[[ref.set]]
+        ref.dat= ref.dat[!row.names(ref.dat) %in% rm.genes, ref.list[[ref.set]],drop=FALSE]
+      },simplify=F)
     }
     else{
-      ref.dat
+      ref.dat.list = sapply(ref.sets, function(ref.set){
+        ref.dat=get_logNormal(comb.dat$dat.list[[ref.set]], ref.list[[ref.set]])
+        ref.dat[!row.names(ref.dat) %in% rm.genes,,drop=FALSE]
+      },simplify=F)
     }
-  },simplify=F)
-  ref.list = sapply(ref.dat.list, colnames, simplify=FALSE)
-  cat("Get knn\n")
-  knn.comb= compute_knn(comb.dat, select.genes=select.genes, ref.list=ref.list, ref.dat.list= ref.dat.list, select.sets=select.sets, select.cells=select.cells, k=k, cross.knn.method=cross.knn.method, self.knn.method=self.knn.method, block.size=block.size, mc.cores=mc.cores)
-  if(is.null(knn.comb)){
-    return(NULL)
+    if(is.null(select.genes)){
+      select.genes = select_joint_genes(comb.dat, ref.dat.list = ref.dat.list,select.cells=select.cells, max.dim= max.dim,rm.eigen=rm.eigen, rm.th=rm.th)
+    }
+    if(length(select.genes) < 20){
+      return(NULL)
+    }
+    ref.dat.list = sapply(ref.dat.list, function(ref.dat){
+      tmp.genes = intersect(select.genes, row.names(ref.dat))
+      tmp = Matrix::colSums(ref.dat[tmp.genes,]) == 0
+      if(sum(tmp)>0){
+        ref.dat[,!tmp,drop=F]
+      }
+      else{
+        ref.dat
+      }
+    },simplify=F)
+    ref.list = sapply(ref.dat.list, colnames, simplify=FALSE)
+    cat("Get knn\n")
+    knn.comb= compute_knn(comb.dat, select.genes=select.genes, ref.list=ref.list, ref.dat.list= ref.dat.list, select.sets=select.sets, select.cells=select.cells, k=k, cross.knn.method=cross.knn.method, self.knn.method=self.knn.method, block.size=block.size, mc.cores=mc.cores)
+    if(is.null(knn.comb)){
+      return(NULL)
+    }
+    #########
+    sampled.cells = unlist(cells.list)
+    if(length(sampled.cells)> sample.size){
+      tmp.list =  sample_sets_list(cells.list, comb.dat$cl.list[select.sets], sample.size=sample.size, cl.sample.size = cl.sample.size)
+      sampled.cells = unlist(tmp.list)
+      if(length(sampled.cells)>jaccard.sampleSize){
+        sampled.cells = sample(sampled.cells, jaccard.sampleSize)
+      }
+      sampled.cells=union(sampled.cells, unlist(ref.list))
+    }     
+    result = knn_jaccard_clust(knn.comb[sampled.cells,],prune=1/(ncol(knn.comb)-1), method=method)
   }
-  #########
-  sampled.cells = unlist(cells.list)
-  if(length(sampled.cells)> sample.size){
-    tmp.list =  sample_sets_list(cells.list, comb.dat$cl.list[select.sets], sample.size=sample.size, cl.sample.size = cl.sample.size)
-    sampled.cells = unlist(tmp.list)
-    if(length(sampled.cells)>jaccard.sampleSize){
-      sampled.cells = sample(sampled.cells, jaccard.sampleSize)
-    }
-    sampled.cells=union(sampled.cells, unlist(ref.list))
-  }     
-  result = knn_jaccard_clust(knn.comb[sampled.cells,],prune=1/(ncol(knn.comb)-1), method=method)
   result$knn = knn.comb
   cl = result$cl
   result$ref.list = ref.list
@@ -636,11 +659,11 @@ harmonize <- function(comb.dat, prefix, overwrite=TRUE, dir="./",...)
 ##' @param ... 
 ##' @return 
 ##' @author Zizhen Yao
-i_harmonize<- function(comb.dat, select.cells=comb.dat$all.cells, ref.sets=names(comb.dat$dat.list), select.sets=names(comb.dat$dat.list), prefix="", result=NULL, overwrite=TRUE, sample.size = 50000, dir="./",rm.genes=NULL,split.size = 100, ...)
+i_harmonize<- function(comb.dat, select.cells=comb.dat$all.cells, ref.sets=names(comb.dat$dat.list), select.sets=names(comb.dat$dat.list), prefix="", joint.rd.dat=NULL, result=NULL, overwrite=TRUE, sample.size = 50000, dir="./",rm.genes=NULL,split.size = 100, ...)
   {
     #attach(comb.dat)
     if(is.null(result)){
-      result = harmonize(comb.dat=comb.dat, select.cells=select.cells, ref.sets=ref.sets, select.sets=select.sets,prefix=prefix, overwrite=overwrite,sample.size=sample.size, dir=dir,rm.genes=rm.genes,...)
+      result = harmonize(comb.dat=comb.dat, select.cells=select.cells, ref.sets=ref.sets, joint.rd.dat=joint.rd.dat, select.sets=select.sets,prefix=prefix, overwrite=overwrite,sample.size=sample.size, dir=dir,rm.genes=rm.genes,...)
     }
     if(is.null(result)){
       return(NULL)
@@ -672,7 +695,7 @@ i_harmonize<- function(comb.dat, select.cells=comb.dat$all.cells, ref.sets=names
         }
         if(comb.dat$type!="big"){
           print("mem")
-          tmp.result = i_harmonize(comb.dat, select.cells=select.cells, ref.sets=ref.sets, select.sets=select.sets,prefix=tmp.prefix, overwrite=overwrite, sample.size=sample.size,dir=dir,result=result,...)
+          tmp.result = i_harmonize(comb.dat, select.cells=select.cells, ref.sets=ref.sets, joint.rd.dat=joint.rd.dat, select.sets=select.sets,prefix=tmp.prefix, overwrite=overwrite, sample.size=sample.size,dir=dir,result=result,...)
         }
         else{
           if(!computed & length(select.cells) < sample.size){
@@ -684,13 +707,13 @@ i_harmonize<- function(comb.dat, select.cells=comb.dat$all.cells, ref.sets=names
             new.comb.dat$dat.list = dat.list
             new.comb.dat$type="mem"
             print("mem")
-            tmp.result = i_harmonize(comb.dat=new.comb.dat, select.cells=select.cells, ref.sets=ref.sets, prefix=tmp.prefix, overwrite=overwrite, sample.size=sample.size,dir=dir,result=result,...)
+            tmp.result = i_harmonize(comb.dat=new.comb.dat, select.cells=select.cells, ref.sets=ref.sets, prefix=tmp.prefix, joint.rd.dat=joint.rd.dat, overwrite=overwrite, sample.size=sample.size,dir=dir,result=result,...)
             rm(new.comb.dat)
             #gc()
           }
           else{
             print("big")
-            tmp.result = i_harmonize(comb.dat, select.cells=select.cells, ref.sets=ref.sets, prefix=tmp.prefix, overwrite=overwrite, sample.size=sample.size, dir=dir,result=result,rm.genes=rm.genes,...)
+            tmp.result = i_harmonize(comb.dat, select.cells=select.cells, ref.sets=ref.sets, prefix=tmp.prefix, joint.rd.dat = joint.rd.dat, overwrite=overwrite, sample.size=sample.size, dir=dir,result=result,rm.genes=rm.genes,...)
           }
         }
         if(!is.null(tmp.result)){
@@ -882,7 +905,7 @@ impute_knn_global_big<- function(comb.dat, split.results, select.genes, select.c
             rd.dat = filter_RD(rd.dat, rm.eigen, rm.th, verbose=verbose)
           }
           ref.cells=colnames(ref.dat)
-          knn = get_knn_batch(rd.dat, rd.dat[ref.cells,], method="Annoy.Euclidean", mc.cores=mc.cores, batch.size=50000,k=k,transposed=FALSE)                  
+          knn = get_knn_batch(rd.dat, rd.dat[ref.cells,], method="Annoy.Euclidean", mc.cores=mc.cores, batch.size=50000,k=k, transposed=FALSE)                  
           reference.id = 1:length(ref.cells)
           gene.id = 1:length(select.genes)
           impute.big.dat = create_big.dat(select.genes, row.names(rd.dat))

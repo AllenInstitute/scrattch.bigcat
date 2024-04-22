@@ -19,6 +19,19 @@ convert_big.dat_fbm <- function(mat, logNormal=TRUE, backingfile=file.path(getwd
     return(big.dat)
   }
 
+create_big.dat_h5ad <- function(h5ad.fn, logNormal=TRUE)
+  {
+    library(anndata)
+    ann = read_h5ad(h5ad.fn)
+    big.dat = list()
+    big.dat$ann = ann
+    big.dat$type="h5ad"
+    big.dat$col_id = big.dat$ann$obs_names
+    big.dat$row_id = big.dat$ann$var_names
+  }
+
+
+
 ###Only works for fbm
 append_big.dat_fbm <- function(big.dat, mat)
   {
@@ -119,6 +132,9 @@ get_cols <-  function(big.dat, cols, rows=big.dat$row_id, ...)
     else if(big.dat$type=="fbm"){
       mat=get_cols_fbm(big.dat, cols, rows=rows, ...)
     }
+    else if(big.dat$type=="h5ad"){
+      mat=get_cols_h5ad(big.dat, cols, rows=rows, ...)
+    }
     else if(big.dat$type=="parquet"){
       mat = get_cols_parquet(big.dat, cols, rows=rows,...)
     }
@@ -154,6 +170,17 @@ get_cols_fbm<- function(big.dat, cols, rows=big.dat$row_id, keep.col=TRUE, spars
     rownames(mat) = big.dat$row_id
     if(!identical(rows, big.dat$row_id)){
       mat = mat[rows,]
+    }
+    return(mat)
+  }
+
+get_cols_h5ad<- function(big.dat, cols, rows=big.dat$row_id, keep.col=TRUE, sparse=TRUE)
+  {
+    library(Matrix)
+    ###h5ad rows are cells and columns are genes, 
+    mat = t(big.dat$ann$X[cols, rows])
+    if(sparse){
+      mat = Matrix(mat,sparse=sparse)
     }
     return(mat)
   }
@@ -347,6 +374,57 @@ convert_big.dat_parquet <- function(mat, dir=getwd(),parquet.dir=file.path(dir,"
     big.dat = list(type = "parquet", row_id = row.df$row_name, col_id = col.df$col_name, logNormal=logNormal,col.fn = col.fn, row.fn = row.fn, parquet.dir = parquet.dir,row.df=row.df, col.df = col.df)    
     return(big.dat)    
   }
+
+
+convert_h5ad_big.dat_parquet <- function(fn, adata=NULL, dir=getwd(),parquet.dir=file.path(dir,"norm.dat_parquet"), col.fn=file.path(dir,"samples.parquet"), row.fn=file.path(dir,"gene.parquet"),col.bin.size=50000, row.bin.size=500,do.logNormal=TRUE,logNormal=TRUE, mc.cores=10)
+  {
+    if(is.null(adata)){
+      adata =read_h5ad(fn)
+    }
+    library(arrow)
+    if(!dir.exists(dir)){
+      dir.create(dir)
+    }
+    if(!dir.exists(parquet.dir)){
+      dir.create(parquet.dir)
+    }
+    
+    col.df = data.table(col_name=adata$obs_names)
+    col.df$col_id = 1:nrow(col.df)
+    col.df$col_bin = ceiling((1:nrow(col.df))/col.bin.size)
+    write_parquet(col.df, col.fn)
+    
+    row.id = as.character(adata$var_names)
+    row.df = data.frame(row_id=1:length(row.id), row_name=row.id)
+    row.df$row_bin = ceiling((1:nrow(row.df))/row.bin.size)
+    write_parquet(row.df, row.fn)
+    
+    library(parallel)    
+    require(doMC)
+    require(foreach)
+    library(MatrixExtra)
+    registerDoMC(cores=mc.cores)
+    tmp <- foreach(bin = 1:max(col.df$col_bin), .combine="c") %dopar% {            
+      col.id = col.df %>% filter(col_bin==bin) %>% pull(col_id)
+      tmp.mat = Matrix(t_shallow(adata$X[col.id,]), sparse=TRUE)
+      if(do.logNormal){
+        tmp.mat = logCPM(tmp.mat)
+      }
+      i = tmp.mat@i
+      x = tmp.mat@x
+      p = tmp.mat@p      
+      j = p[-1] - p[-length(p)]
+      j = rep(col.id-1, j)
+      df = data.frame(i=i, j=j, x=x)
+      df$row_bin = ceiling((i+1)/row.bin.size)
+      path = file.path(parquet.dir, paste0("col_bin=",bin))
+      dir.create(path)
+      write_dataset(df, path, partition=c("row_bin"))      
+    }
+    big.dat = list(type = "parquet", row_id = row.df$row_name, col_id = col.df$col_name, logNormal=logNormal,col.fn = col.fn, row.fn = row.fn, parquet.dir = parquet.dir,row.df=row.df, col.df = col.df)    
+    return(big.dat)    
+  }
+
 
 ##' .. content for \description{} (no empty lines) ..
 ##'
@@ -619,10 +697,6 @@ get_cols_parquet <- function(big.dat.parquet, cols, rows=NULL,keep.col=FALSE, sp
     row.id = rep(0, max(row.df$row_id))
     row.id[row.df$row_id] = row.df$new_i
 
-    if(as.numeric(length(select.j))*length(select.i) > 2^32){
-      stop("Matrix too big")
-    }
-
     library(parallel)    
     require(doMC)
     require(foreach)
@@ -635,7 +709,11 @@ get_cols_parquet <- function(big.dat.parquet, cols, rows=NULL,keep.col=FALSE, sp
     
     mat.df = rbindlist(tmp)
     #mat.df = ds %>% filter(row_bin %in% row.bin & col_bin %in% col.bin & j %in% select.j & i %in% select.i) %>% select(i,j,x) %>% collect()
-    
+
+    if(nrow(mat.df) > 2^32){
+      stop("Matrix too big")
+    }
+
     library(Matrix)
     mat = sparseMatrix(i = row.id[mat.df$i+1], j=col.id[mat.df$j+1], x=mat.df$x, dims=c(nrow(row.df),nrow(col.df)))
     #colnames(mat) = col.df$col_name
@@ -938,7 +1016,7 @@ get_knn_batch_big <- function(big.dat, ref.dat, select.cells,block.size=10000, m
     }   
     result = big_dat_apply(big.dat, cols=select.cells, .combine=fun, mc.cores=mc.cores, block.size=block.size, FUN = function(big.dat, bin,...){
       {
-        dat = get_logNormal(big.dat, bin, rows=row.names(ref.dat))
+        dat = get_logNormal(big.dat, bin, rows=row.names(ref.dat), mc.cores=1)
         knn=get_knn(dat=dat, ref.dat=ref.dat, k=k, method=method, dim=dim,return.distance=return.distance,index=index,transposed=TRUE,...)
         rm(dat)
         gc()

@@ -597,16 +597,15 @@ cpm <- function(counts, sf=NULL, denom=1e6) {
 #' 
 #' @export
 #' 
-logCPM <- function(counts) {
+logCPM <- function(counts,denom=1e6) {
   
-  norm.dat <- cpm(counts)
+  norm.dat <- cpm(counts, denom=denom)
   
   if(is.matrix(norm.dat)){
     norm.dat <- log2(norm.dat + 1)
   } else {
     norm.dat@x <- log2(norm.dat@x + 1)
   }
-  
   norm.dat
 }
 
@@ -651,8 +650,8 @@ pair_cor <- function(mat1,
   
   mat1 <- mat1 - rowMeans(mat1)
   mat2 <- mat2 - rowMeans(mat2)
-  sd1 <- rowSds(mat1)
-  sd2 <- rowSds(mat2)
+  sd1 <- rowSds(mat1,useNames=TRUE)
+  sd2 <- rowSds(mat2,useNames=TRUE)
   cors <- rowSums(mat1 * mat2) / ((ncol(mat1) - 1) * sd1 * sd2)  
   return(cors)
 }
@@ -718,7 +717,6 @@ get_cl_stats <- function(mat,
                          cl, 
                          stats = c("sums","means","medians","present","sqr_sums","sqr_means"),
                          low.th=1,
-                         parallel = c(FALSE,TRUE),
                          mc.cores = 1,...)
 {
   if(!is.factor(cl)){
@@ -726,6 +724,7 @@ get_cl_stats <- function(mat,
   }
   library(RcppParallel)
   mc.cores = mc.cores
+  parallel = mc.cores > 1
   setThreadOptions(numThreads = mc.cores)
   transpose=FALSE
   sparse=TRUE
@@ -904,3 +903,10 @@ standardize <- function(X, by="column")
   }
 }
 
+change_scale_factor_lognormal <- function(lognorm.dat, org.scale, new.scale)
+  {
+    ##exp log data
+    dat@x = 2^lognorm.dat@x - 1
+    dat = dat /org.scale * new.scale
+    lognorm.dat = log2(dat + 1)    
+  }

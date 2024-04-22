@@ -214,7 +214,8 @@ de_param <- function(low.th = 1,
 vec_chisq_test <- function(x, 
                            x.total, 
                            y, 
-                           y.total) {
+                           y.total,
+                           fudge=1) {
   
   total <- x.total + y.total
   present <- x + y
@@ -236,7 +237,7 @@ vec_chisq_test <- function(x,
   
   results <- data.frame(stats = stat, 
                         pval = pchisq(stat, 1, lower.tail = FALSE), 
-                        logFC = log2( (x * y.total) / (y * x.total)), 
+                        logFC = log2((x * y.total+fudge) / (y * x.total+fudge)), 
                         diff = x / x.total - y / y.total)
   results
 }
@@ -331,8 +332,7 @@ de_pair_limma <- function(pair,
 #'
 de_pair_chisq <- function(pair,
                           cl.present,
-                          cl.means,
-                          cl.size)
+                          cl.size,fudge=1)
 {
   
   x <- as.character(pair[1])
@@ -341,31 +341,20 @@ de_pair_chisq <- function(pair,
   chisq_results <- vec_chisq_test(cl.present[, x] * cl.size[[x]], 
                                   cl.size[x], 
                                   cl.present[, y] * cl.size[[y]], 
-                                  cl.size[y])
+                                  cl.size[y],fudge=1)
   
   chisq_results$pval[is.na(chisq_results$pval)] <- 1
   
   pval <- chisq_results[, "pval"]
   padj <- p.adjust(pval)
   
-  lfc <- cl.means[, x] - cl.means[, y]
-  # Note: Above depends on the data being log2 scaled already.
-  # If we change this expectation, we may need a more generalized calculation.
-  # fc <- cl.means[, x] / cl.means[, y]
-  # lfc <- log2(fc)
-  # lfc[is.na(lfc)] <- 0
-  
   results <- data.frame(padj = padj,
                         pval = pval,
-                        lfc = lfc,
-                        meanA = cl.means[,x], 
-                        meanB = cl.means[,y],
+                        lfc = chisq_results$logFC,
                         q1 = cl.present[,x], 
                         q2 = cl.present[,y])
-  row.names(results) <- row.names(cl.means)
-  
+  row.names(results) <- row.names(cl.present)
   return(results)
-  
 }
 
 
@@ -684,10 +673,12 @@ de_stats_pair <- function(df,
     tmp = down.genes
     tmp[tmp > 20] = 20
     down.score <- sum(tmp)    
-   
+    lfc = with(df, setNames(lfc, row.names(df)))
+    lfc= lfc[select]
     result=list(
       up.genes=up.genes,
       down.genes=down.genes,
+      lfc = lfc,
       up.score = up.score,
       down.score = down.score,
       score = up.score + down.score,
@@ -696,7 +687,7 @@ de_stats_pair <- function(df,
       num = length(up.genes) + length(down.genes)
       )
     
-
+    
     if(return.df){
       result$de.df = df[select,]
     }
@@ -995,7 +986,7 @@ plot_pair_matrix <- function(pair.num, file, directed=FALSE, dend=NULL, col=jet.
   }
 
 
-export_de_genes <- function(de.genes, cl.means, out.dir="de_parquet", pairs=NULL,cl.bin=NULL, mc.cores=1, top.n = 1000, overwrite=FALSE)
+export_de_genes <- function(de.genes,  out.dir="de_parquet", pairs=NULL,cl.bin=NULL, mc.cores=1, top.n = 1000, overwrite=FALSE)
   {
     library(data.table)
     library(arrow)
@@ -1046,7 +1037,7 @@ export_de_genes <- function(de.genes, cl.means, out.dir="de_parquet", pairs=NULL
           gene = c(names(up),names(down))
           logPval = c(up, down)
           rank = c(seq_len(length(up)),seq_len(length(down)))        
-          lfc =  abs(cl.means[gene, p1] - cl.means[gene, p2])
+          lfc = abs(de.genes[[p]]$lfc[gene])
           sign = rep(c("up","down"),c(length(up),length(down)))
           df = data.frame(gene=gene, logPval=logPval,sign=sign, rank=rank)
           df$pair = p
@@ -1207,18 +1198,18 @@ de_selected_pairs <- function(norm.dat,
   }
   
                                         # Compute fraction of cells in each cluster with expression >= low.th
-  if(is.null(cl.present)){
+  if(is.null(cl.present) & method %in% c("limma","fast_limma","chisq")){
     cl.present <- as.data.frame(get_cl_present(norm.dat, cl, de.param$low.th))
   } else{
     cl.present <- as.data.frame(cl.present)   
   }
    
-  if(is.null(cl.sqr.means)){
+  if(is.null(cl.sqr.means) &  method %in% c("limma","fast_limma")){
     cl.sqr.means <- as.data.frame(get_cl_sqr_means(norm.dat, cl))
   } else{
     cl.sqr.means <- as.data.frame(cl.sqr.means)
   }
-   
+  
   if(method == "limma"){
     require("limma")    
     norm.dat <- as.matrix(norm.dat[, names(cl)])
@@ -1304,7 +1295,6 @@ de_selected_pairs <- function(norm.dat,
         else if (method == "chisq"){
           df = de_pair_chisq(pair = pair,
             cl.present = cl.present,
-            cl.means = cl.means,
             cl.size = cl.size)
         }      
         if(!is.null(de.param$min.cells)) {

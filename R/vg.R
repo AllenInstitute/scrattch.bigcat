@@ -49,8 +49,7 @@
 #' This function is a wrapper around compute_vg_stats(), which computes variability statistics, 
 #' and plot_vg(), which generates multiple plots for those results.
 #' 
-#' @param dat A matrix or dgCMatrix with samples as columns and genes as rows
-#' @param rescaled logical - whether the data matrix should be normalized by columns). Assume input data have already been normalized
+#' @param dat A matrix or dgCMatrix with samples as columns and genes as rows. The matrix should be already normalized by columns
 #' @param plot_file (optional) A file to use to output diagnostic plots. Default is NULL.
 #' @param return_type What kind of objects to return. Default is "data", which will return only 
 #' a data.frame with results for each gene. Other options are "plots", which will return a list 
@@ -62,8 +61,7 @@
 #' 
 #' @export
 #' 
-find_vg <- function(dat,
-                    rescaled = FALSE,
+find_vg <- function(dat,                  
                     plot_file = NULL, 
                     return_type = "data",
                     verbose = FALSE) {
@@ -71,8 +69,7 @@ find_vg <- function(dat,
   return_type <- match.arg(return_type,
                            choices = c("data","plots","both"))
   
-  gene_var_stats <- compute_vg_stats(dat,
-                                     rescaled=rescaled,
+  gene_var_stats <- compute_vg_stats(dat,                        
                                      verbose = verbose)
   
   if(return_type == "data") {
@@ -120,16 +117,8 @@ find_vg <- function(dat,
 #' @export
 #' 
 compute_vg_stats <- function(dat,
-                             rescaled = FALSE,
                              verbose = FALSE) {
   
-  if(verbose) { cat("Rescaling data\n") }
-  if(rescaled){
-    scaled_data <- rescale_samples(dat)
-  }
-  else{
-    scaled_data = dat
-  }
   if(verbose) { cat("Computing scaled means\n") }
   means <- gene_means(scaled_data)
   

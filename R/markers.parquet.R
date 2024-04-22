@@ -62,7 +62,7 @@ update_gene_score_ds <- function(gene.score, ds, to.remove, cl.bin, de=NULL, max
       }
     }
     tmp = gene.score %>% left_join(rm.gene.score) %>% mutate(rm.score = ifelse(is.na(rm.score), 0, rm.score)) %>% mutate(new.score = score - rm.score) 
-    tmp = tmp%>% select(gene, new.score) %>% rename(score=new.score) %>% filter(score > 0) %>% arrange(-score)
+    tmp = tmp%>% select(gene, new.score) %>% rename("new.score"="score") %>% filter(score > 0) %>% arrange(-score)
     return(tmp)
   }
 
@@ -224,14 +224,14 @@ select_markers_pair_direction_ds <- function(de.dir, add.num, genes, cl.bin, de=
       }
       #gene.score = update_gene_score_ds(gene.score, ds=ds, to.remove=to.remove, cl.bin=cl.bin, de=de,mc.cores=mc.cores)
       #gene.score = gene.score %>% filter(gene %in% genes)
-      if(nrow(to.remove)> nrow(add.num)){
+      if(nrow(to.remove)> nrow(add.num) |nrow(add.num)<1000){
         gene.score=get_gene_score_ds(ds, to.add=add.num, genes=genes,cl.bin=cl.bin, de=de, mc.cores=mc.cores)
       }
       else{
         rm.gene.score = get_gene_score_ds(ds, to.add=to.remove, genes=genes,cl.bin=cl.bin, de=de, mc.cores=mc.cores) %>% rename(rm.score=score)
         tmp = gene.score %>% filter(!gene ==g) %>% left_join(rm.gene.score) %>% mutate(rm.score = ifelse(is.na(rm.score), 0, rm.score)) %>% mutate(new.score = score - rm.score) 
         tmp = tmp%>% select(gene, new.score) %>% rename(score=new.score) %>% filter(score > 0) %>% arrange(-score)
-        gene.score=tmp 
+        gene.score=tmp
       }
       if(!is.null(de)){
         de = de %>% filter(gene!=g)
@@ -347,6 +347,9 @@ select_N_markers_ds<- function(de.dir, select.cl=NULL,pair.num=1, add.num=NULL, 
       add.num$checked=NULL
     }
     print(dim(add.num))
+    if(nrow(add.num)==0){
+      return(NULL)
+    }
     markers <- select_markers_pair_direction_ds(de.dir, add.num=add.num, genes=genes,cl.bin=cl.bin,...)$select.genes    
   }
 
