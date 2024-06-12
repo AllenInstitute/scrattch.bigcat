@@ -2,11 +2,11 @@ jet.colors <-colorRampPalette(c("#00007F", "blue", "#007FFF", "cyan","#7FFF7F", 
 blue.red <-colorRampPalette(c("blue", "white", "red"))
 
 varibow <-function (n_colors)
-  {
-    sats <- rep_len(c(0.4, 0.55, 0.7, 0.85, 1), length.out = n_colors)
-    vals <- rep_len(c(1, 0.8, 0.6, 0.4), length.out = n_colors)
-    col <- grDevices::rainbow(n_colors, s = sats, v = vals)
-  }
+{
+  sats <- rep_len(c(0.4, 0.55, 0.7, 0.85, 1), length.out = n_colors)
+  vals <- rep_len(c(1, 0.8, 0.6, 0.4), length.out = n_colors)
+  col <- grDevices::rainbow(n_colors, s = sats, v = vals)
+}
 
 
 #' get_RD_cl_center
@@ -49,7 +49,7 @@ get_RD_cl_center <- function(rd.dat, cl)
 #' @export
 #'
 #' @examples
-plot_RD_cl <- function(rd.dat, cl, cl.color=NULL, cl.label=NULL,cex=0.15, fn.size =2, alpha.val=NULL,show.legend=FALSE, legend.size=2, label.center=TRUE, bg="blank",fn.color="black",no.shape=TRUE,ncol=4,shift.x=0, shift.y=0, raster=F, dpi=300)
+plot_RD_cl <- function(rd.dat, cl, cl.color=NULL, cl.label=NULL,cex=0.15, fn.size =2, alpha.val=NULL,show.legend=FALSE, legend.size=2, label.center=TRUE, bg="blank",fn.color="black", na.val="grey60",no.shape=TRUE,ncol=4,shift.x=0, shift.y=0, raster=F, dpi=300)
 {
   x=unique(cl)
   if(is.null(cl.label)){
@@ -69,9 +69,9 @@ plot_RD_cl <- function(rd.dat, cl, cl.color=NULL, cl.label=NULL,cex=0.15, fn.siz
     shape = setNames(1:length(levels(rd.dat$cl)) %% 20 + 1,levels(rd.dat$cl))
     if(length(cex)==1){
       if(isTRUE(raster)){
-        g= g +  ggrastr::rasterise(geom_point(aes(color=cl,shape=cl),size=cex), dpi=dpi)
+        g= g +  ggrastr::rasterise(geom_point(aes(color=cl,shape=cl),size=cex, stroke=0), dpi=dpi)
       } else{
-        g=g + geom_point(aes(color=cl,shape=cl),size=cex)
+        g=g + geom_point(aes(color=cl,shape=cl),size=cex, stroke=0)
       }
     }
     else{
@@ -107,7 +107,7 @@ plot_RD_cl <- function(rd.dat, cl, cl.color=NULL, cl.label=NULL,cex=0.15, fn.siz
   else{
     col = as.vector(cl.color[levels(rd.dat$cl)])
   }
-  g = g+ scale_color_manual(values=col,labels=cl.label[levels(rd.dat$cl)])
+  g = g+ scale_color_manual(values=col,labels=cl.label[levels(rd.dat$cl)],na.value=na.val)
   if(label.center){
     g = g + geom_point(data=as.data.frame(cl.center), aes(x=x, y=y,alpha=0.5), size=cex)
     g = g +  annotate("text", label=cl.label[row.names(cl.center)], x=cl.center[,1]+shift.x, y=cl.center[,2] + shift.y,size=fn.size,color=fn.color,hjust=0)    
@@ -136,7 +136,7 @@ plot_RD_cl <- function(rd.dat, cl, cl.color=NULL, cl.label=NULL,cex=0.15, fn.siz
 
 
 
- 
+
 ###meta is discretized. 
 #' plot_RD_meta
 #'
@@ -156,19 +156,19 @@ plot_RD_cl <- function(rd.dat, cl, cl.color=NULL, cl.label=NULL,cex=0.15, fn.siz
 #' @export
 #'
 #' @examples
-plot_RD_meta <- function(rd.dat, meta, meta.col=NULL,show.legend=TRUE, cex=0.15, legend.size=5,alpha.val=1, palette = NULL, reverse = FALSE, low="blue",high="red", raster=F, dpi=300)
+plot_RD_meta <- function(rd.dat, meta, meta.col=NULL,show.legend=TRUE, cex=0.15, legend.size=5,alpha.val=1, palette = NULL, reverse = FALSE, low="blue",high="red", raster=F, dpi=300, na.val="grey60")
 {
   rd.dat = as.data.frame(rd.dat)
   colnames(rd.dat)[1:2] = c("Dim1","Dim2")
   library(ggplot2)
-  rd.dat$meta = meta
+  rd.dat$meta = meta[match(rownames(rd.dat), names(meta))]
   p=ggplot(rd.dat, aes(Dim1, Dim2)) 
   if(isTRUE(raster)){
     p = p + ggrastr::rasterise(geom_point(aes(color=meta),size=cex), dpi=dpi)
   } else{ 
     p = p + geom_point(aes(color=meta),size=cex)
   }
-
+  
   if(is.factor(meta)){
     rd.dat = droplevels(rd.dat)
     if(is.null(meta.col)){
@@ -179,7 +179,7 @@ plot_RD_meta <- function(rd.dat, meta, meta.col=NULL,show.legend=TRUE, cex=0.15,
         meta.col = setNames(c("blue", "orange"), levels(meta))
       }
     }      
-    p = p+ scale_color_manual(values=alpha(as.vector(meta.col[levels(rd.dat$meta)]),alpha.val))
+    p = p+ scale_color_manual(values=alpha(as.vector(meta.col[levels(rd.dat$meta)]), alpha.val),  limits = force)
   }
   else{
     if(!is.null(palette)){
@@ -196,16 +196,20 @@ plot_RD_meta <- function(rd.dat, meta, meta.col=NULL,show.legend=TRUE, cex=0.15,
       } else if (palette == "spectral" ){
         cols <-  c("D53E4F", "F46D43", "FDAE61", "FEE08B", "FFFFBF", "E6F598", "ABDDA4", "66C2A5", "3288BD")
       }   else if (palette == "turbo" ){
-        cols <-  c("#7A0403","#D23105","#FB8022","#EDD03A","#A3FD3D","#1AE4B6","#4686FA","#466BE3","#30123B")
+        cols <-  c("#7A0403","#D23105","#FB8022","#EDD03A","#A3FD3D","#1AE4B6","#4686FA","#466BE3","#30123B") 
+      } else if (palette == "coolwarm" ){
+        cols <- c("#4858A7", "#788FC8", "#D6DAE1", "#F49B7C", "#B51F29") 
+      } else if (palette == "horizon" ){
+        cols <- c("1"='#000075',"4"='#2E00FF', "6"='#9408F7', "10"='#C729D6', "8"='#FA4AB5', "3"='#FF6A95', "7"='#FF8B74', "5"='#FFAC53', "9"='#FFCD32', "2"='#FFFF60')
       } else{ print("Error: palette unknown")}  
       
       if(isTRUE(reverse) ){
-        p = p+ scale_color_gradientn(colours = rev(cols))
+        p = p+ scale_color_gradientn(colours = rev(cols), na.value=na.val)
       } else{ 
-        p = p+ scale_color_gradientn(colours = cols)
+        p = p+ scale_color_gradientn(colours = cols, na.value=na.val)
       }   
     } else{
-      p = p+ scale_color_gradient(low=low,high=high)
+      p = p+ scale_color_gradient(low=low,high=high, na.value=na.val)
     }
   }
   p = p+ theme_void()
@@ -234,27 +238,27 @@ plot_RD_meta <- function(rd.dat, meta, meta.col=NULL,show.legend=TRUE, cex=0.15,
 #'
 #' @examples
 plot_RD_gene <- function(rd.dat, norm.dat, genes, cex=0.15, raster=F, dpi=300)
-  {
-    library(ggplot2)
-    plots=list()
-    rd.dat = as.data.frame(rd.dat)
-    colnames(rd.dat)[1:2] = c("Dim1","Dim2")
-    for(g in genes){
-      rd.dat$expr = norm.dat[g,row.names(rd.dat)]
-      p=ggplot(rd.dat, aes(Dim1, Dim2)) 
-      if(isTRUE(raster)){
-        p = p + ggrastr::rasterise(geom_point(aes(color=expr),size=cex), dpi=dpi)
-      } else{ 
-        p = p + geom_point(aes(color=expr),size=cex)
-      }
-      p = p+ scale_color_gradient(low="gray80",high="red") 
-      p = p + theme_void() + theme(legend.position="none")
-      p = p + coord_fixed(ratio=1)
-      p = p + ggtitle(g)
-      plots[[g]]= p
+{
+  library(ggplot2)
+  plots=list()
+  rd.dat = as.data.frame(rd.dat)
+  colnames(rd.dat)[1:2] = c("Dim1","Dim2")
+  for(g in genes){
+    rd.dat$expr = norm.dat[g,row.names(rd.dat)]
+    p=ggplot(rd.dat, aes(Dim1, Dim2)) 
+    if(isTRUE(raster)){
+      p = p + ggrastr::rasterise(geom_point(aes(color=expr),size=cex), dpi=dpi)
+    } else{ 
+      p = p + geom_point(aes(color=expr),size=cex)
     }
-    return(plots)
+    p = p+ scale_color_gradient(low="gray80",high="red") 
+    p = p + theme_void() + theme(legend.position="none")
+    p = p + coord_fixed(ratio=1)
+    p = p + ggtitle(g)
+    plots[[g]]= p
   }
+  return(plots)
+}
 
 
 ###copy from R cookbook: http://www.cookbook-r.com/Graphs/Multiple_graphs_on_one_page_(ggplot2)/
@@ -271,41 +275,41 @@ plot_RD_gene <- function(rd.dat, norm.dat, genes, cex=0.15, raster=F, dpi=300)
 #'
 #' @examples
 multiplot <- function(..., plotlist=NULL, cols=1, layout=NULL,byrow=FALSE) {
-    library(grid)
-    # Make a list from the ... arguments and plotlist
-    plots <- c(list(...), plotlist)
+  library(grid)
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+  
+  numPlots = length(plots)
+  
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                     ncol = cols, 
+                     nrow = ceiling(numPlots/cols),byrow=byrow)
+  }
+  
+  if (numPlots==1) {
+    print(plots[[1]])
     
-    numPlots = length(plots)
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
     
-     # If layout is NULL, then use 'cols' to determine layout
-    if (is.null(layout)) {
-        # Make the panel
-        # ncol: Number of columns of plots
-        # nrow: Number of rows needed, calculated from # of cols
-        layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
-                         ncol = cols, 
-                         nrow = ceiling(numPlots/cols),byrow=byrow)
-    }
-    
-    if (numPlots==1) {
-      print(plots[[1]])
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
       
-    } else {
-          # Set up the page
-          grid.newpage()
-          pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
-          
-      # Make each plot, in the correct location
-      for (i in 1:numPlots) {
-        # Get the i,j matrix positions of the regions that contain this subplot
-        matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
-        
-        print(plots[[i]], 
-              vp = viewport(layout.pos.row = matchidx$row,
-                            layout.pos.col = matchidx$col))
-      }
+      print(plots[[i]], 
+            vp = viewport(layout.pos.row = matchidx$row,
+                          layout.pos.col = matchidx$col))
     }
   }
+}
 
 
 
@@ -560,20 +564,20 @@ plot_2d_select <- function(rd.dat, select.cells, fg.col=  "red", bg.col="gray", 
 #'
 #' @examples
 plot_3d_select <- function(rd.dat, select.cells, fg.col=  "red", bg.col="gray", fg.alpha=1, bg.alpha=0.5,cex=0.15, web.fn=NULL, web.dir="./")                           
-  {
-    meta = factor(row.names(rd.dat) %in% select.cells)
-    levels(meta) = c("bg","fg")
-    meta.col = alpha(meta.col=c(fg=fg.col, bg=bg.col), alpha.val=c(fg=fg.alpha,bg=bg.alpha))
-    df = as.data.frame(rd.dat)
-    df$select = meta
-    df$col  = meta.col[meta]
-    rgl.open()
-    rgl.points(df$Dim1,df$Dim2, df$Dim3, col=df$col)
-    if(!is.null(web.fn)){
-      writeWebGL(dir=dir, filename=fn)
-    }
+{
+  meta = factor(row.names(rd.dat) %in% select.cells)
+  levels(meta) = c("bg","fg")
+  meta.col = alpha(meta.col=c(fg=fg.col, bg=bg.col), alpha.val=c(fg=fg.alpha,bg=bg.alpha))
+  df = as.data.frame(rd.dat)
+  df$select = meta
+  df$col  = meta.col[meta]
+  rgl.open()
+  rgl.points(df$Dim1,df$Dim2, df$Dim3, col=df$col)
+  if(!is.null(web.fn)){
+    writeWebGL(dir=dir, filename=fn)
   }
-  
+}
+
 ##' .. content for \description{} (no empty lines) ..
 ##'
 ##' .. content for \details{} ..
@@ -593,27 +597,27 @@ plot_3d_select <- function(rd.dat, select.cells, fg.col=  "red", bg.col="gray", 
 ##' @return 
 ##' @author Zizhen Yao
 plot_RD_cl_subset<- function(rd.dat, cl, cl.color,cl.label,select.samples,missing.color="gray85",min.size=10,fg.alpha=1,bg.alpha=0.5,fg.size=1, bg.size=0.15,...)
-  {
-    cl= setNames(as.character(cl), names(cl))
-    cl = cl[names(cl)%in% select.samples]
-    tmp = setdiff(row.names(rd.dat),names(cl))
-    cl = c(cl, setNames(rep("0",length(tmp)), tmp))
-    cl.size= table(cl)
-    cl.small = names(cl.size)[cl.size < min.size]
-    cl.label[c(cl.small,"0")] = " "
-    cl.color["0"] = missing.color
-    alpha.val = setNames(rep(fg.alpha, length(cl.color)),names(cl.color))
-    alpha.val["0"] = bg.alpha    
-    cl.color = alpha(cl.color, alpha.val)
-    cl.cex = setNames(rep(fg.size, length(cl.label)),names(cl.label))
-    cl.cex["0"]=bg.size
-    cl.label = cl.label[names(cl.size)]
-    cl.color = cl.color[names(cl.size)]
-    cl.cex=cl.cex[names(cl.size)]
-    rd.dat = rd.dat[order(row.names(rd.dat) %in% select.samples),]
-    plot_RD_cl(rd.dat, cl, cl.color, cl.label,cex=cl.cex, ...)    
-  }
-  
+{
+  cl= setNames(as.character(cl), names(cl))
+  cl = cl[names(cl)%in% select.samples]
+  tmp = setdiff(row.names(rd.dat),names(cl))
+  cl = c(cl, setNames(rep("0",length(tmp)), tmp))
+  cl.size= table(cl)
+  cl.small = names(cl.size)[cl.size < min.size]
+  cl.label[c(cl.small,"0")] = " "
+  cl.color["0"] = missing.color
+  alpha.val = setNames(rep(fg.alpha, length(cl.color)),names(cl.color))
+  alpha.val["0"] = bg.alpha    
+  cl.color = alpha(cl.color, alpha.val)
+  cl.cex = setNames(rep(fg.size, length(cl.label)),names(cl.label))
+  cl.cex["0"]=bg.size
+  cl.label = cl.label[names(cl.size)]
+  cl.color = cl.color[names(cl.size)]
+  cl.cex=cl.cex[names(cl.size)]
+  rd.dat = rd.dat[order(row.names(rd.dat) %in% select.samples),]
+  plot_RD_cl(rd.dat, cl, cl.color, cl.label,cex=cl.cex, ...)    
+}
+
 
 
 #' plot_2d_umap_anno
@@ -658,7 +662,7 @@ plot_2d_umap_anno <- function(umap.fn,
   library(dplyr)
   library(ggplot2)
   if(is.null(umap.2d)){
-  #load umap from csv
+    #load umap from csv
     umap.2d <- as.data.frame(fread(umap.fn,header=TRUE))
     colnames(umap.2d) <- c("sample_id","Dim1","Dim2")
     umap.2d <- umap.2d[sample(1:nrow(umap.2d)),]
@@ -666,7 +670,7 @@ plot_2d_umap_anno <- function(umap.fn,
   umap.df = umap.2d %>% left_join(anno.df)
   row.names(umap.2d)<-umap.2d$sample_id
   umap.2d <- umap.2d[,c("Dim1","Dim2")]
-
+  
   # extract filename for saving
   umap.fn <- basename(umap.fn)
   umap.fn <- gsub(".csv", "",umap.fn)
@@ -708,18 +712,18 @@ plot_2d_umap_anno <- function(umap.fn,
       tmp.color = setNames(as.character(tmp.df$color), tmp.df$label)
       
       g= plot_RD_meta(umap.2d, 
-        factor(umap.df[,paste0(m, "_label")], 
-               levels=names(tmp.color)),
-        meta.col = tmp.color,
-        alpha=alpha)
+                      factor(umap.df[,paste0(m, "_label")], 
+                             levels=names(tmp.color)),
+                      meta.col = tmp.color,
+                      alpha=alpha)
       
       if(show.legend==TRUE){
         g[["labels"]][["colour"]] <- m
         legend <- cowplot::get_legend(g)   
         g = g + theme(axis.title.x=element_blank(), axis.title.y=element_blank())+ 
           theme_void() + 
-            theme(legend.position="none") +
-              coord_fixed(ratio=1)
+          theme(legend.position="none") +
+          coord_fixed(ratio=1)
         g <- cowplot::plot_grid(g, legend, ncol=2)
         plot.list[[m]] <- g
       }     
@@ -735,16 +739,16 @@ plot_2d_umap_anno <- function(umap.fn,
   #save list of plots as pdf or png
   if(save.format == "pdf") {
     lapply(names(plot.list), function(nm)
-           ggsave(plot=plot.list[[nm]], file=file.path(dest.d, paste0(umap.fn,"_",nm, ".pdf")), useDingbats=FALSE, height=plot.height, width=plot.width   ))
+      ggsave(plot=plot.list[[nm]], file=file.path(dest.d, paste0(umap.fn,"_",nm, ".pdf")), useDingbats=FALSE, height=plot.height, width=plot.width   ))
   } else if(save.format == "png"){
     lapply(names(plot.list), function(nm)
-           ggsave(plot=plot.list[[nm]], file=file.path(dest.d, paste0(umap.fn,"_",nm, ".png")), height=plot.height, width=plot.width   ))
+      ggsave(plot=plot.list[[nm]], file=file.path(dest.d, paste0(umap.fn,"_",nm, ".png")), height=plot.height, width=plot.width   ))
   } else if(save.format == "both"){
     lapply(names(plot.list), function(nm)
-           ggsave(plot=plot.list[[nm]], file=file.path(dest.d, paste0(umap.fn,"_",nm, ".pdf")), useDingbats=FALSE, height=plot.height, width=plot.width ))
+      ggsave(plot=plot.list[[nm]], file=file.path(dest.d, paste0(umap.fn,"_",nm, ".pdf")), useDingbats=FALSE, height=plot.height, width=plot.width ))
     
     lapply(names(plot.list), function(nm)
-           ggsave(plot=plot.list[[nm]], file=file.path(dest.d, paste0(umap.fn,"_",nm, ".png")), height=plot.height, width=plot.width  ))
+      ggsave(plot=plot.list[[nm]], file=file.path(dest.d, paste0(umap.fn,"_",nm, ".png")), height=plot.height, width=plot.width  ))
   }
   else{ print("Specify save.format")
   }
@@ -827,7 +831,7 @@ plot_3d_umap_anno <- function(umap.fn,
 plot_RD_highlight <- function(rd.dat, 
                               meta, 
                               meta.col,
-                              show.legend=c("fg","all","none"), 
+                              show.legend=c("none","fg","all"), 
                               legend.size=5,
                               label.center=F,
                               label.cex=1,
@@ -842,7 +846,10 @@ plot_RD_highlight <- function(rd.dat,
                               bg.alpha = 0.25,
                               bg.color=NULL,
                               rel.legend.width = 0.15 ,
-                              raster=F, dpi=300
+                              raster=F, dpi=300,
+                              plot.order = NULL,
+                              xlims = NULL,
+                              ylims = NULL
 ) {
   
   rd.dat = as.data.frame(rd.dat)
@@ -863,27 +870,46 @@ plot_RD_highlight <- function(rd.dat,
   }
   
   
-  fg.df <- rd.dat[rownames(rd.dat) %in% fg.cells,]
+  fg.df <- rd.dat[fg.cells,]
   
   if(nrow(fg.df)>0){
     fg.df$alpha.val <- fg.alpha
     fg.df$cex <- fg.cex
     fg.df$color <- meta.col[match(fg.df$meta, names(meta.col))]
+    
   }
   plot.df <- rbind(bg.df, fg.df)
-  g = ggplot(plot.df, aes(Dim1, Dim2, colour=color))
+  
+  if(!is.null(plot.order)){
+    all.other <- setdiff( unique(plot.df$meta),plot.order)
+    plotor <- rev(c(plot.order, all.other))
+    plot.df <- plot.df[order(match(plot.df$meta, plotor)),]
+  }
+  
+  plot.col <- unique(plot.df[,c("color", "meta")])
+  plot.col <- setNames(plot.col$color, plot.col$meta)
+  
+  g = ggplot(plot.df, aes(Dim1, Dim2, colour=color,size = cex))
   if(isTRUE(raster)){
     g = g + ggrastr::rasterise(geom_point(#colour=plot.df$color, 
-      size = plot.df$cex, 
       alpha= plot.df$alpha.val,
-      shape= 19), dpi=dpi)
+      shape= 16), dpi=dpi)
   } else{ 
     g = g +    geom_point(#colour=plot.df$color, 
-      size = plot.df$cex, 
       alpha= plot.df$alpha.val,
-      shape= 19)
+      shape= 16)
   }
   g = g + scale_colour_identity()
+  g = g + scale_size_identity() 
+  
+  if(!is.null(xlims )){
+    g = g +
+      xlim(xlims[1], xlims[2])
+  }
+  if(!is.null(ylims)){
+    g = g +
+      ylim(ylims[1], ylims[2])
+  }
   
   if(isTRUE(theme.void)){
     g = g + theme_void()
@@ -896,7 +922,7 @@ plot_RD_highlight <- function(rd.dat,
   g = g + coord_fixed(ratio=1) +
     theme(legend.position="none") 
   
-  if(label.center){
+  if(isTRUE(label.center)){
     tmp.cl <- setNames(plot.df$meta[rownames(plot.df) %in% fg.cells], rownames(plot.df)[rownames(plot.df) %in% fg.cells])
     cl.size = table(tmp.cl)
     if(!is.null(label.meta)){
@@ -905,7 +931,7 @@ plot_RD_highlight <- function(rd.dat,
     else{
       select.cl = names(cl.size)[cl.size >= label.min.cells]
     }
-    if(length(select.cl)>0){
+    if(length(tmp.cl)>0){
       tmp.cl = tmp.cl[tmp.cl %in% select.cl]
       if(is.factor(tmp.cl)){
         tmp.cl = droplevels(tmp.cl)
@@ -919,11 +945,11 @@ plot_RD_highlight <- function(rd.dat,
       cl.center$segment.color = meta.col[cl.center$meta]
       if(label.repel){
         g = g + ggrepel::geom_text_repel(data=cl.center,
-          aes(Dim1, Dim2, label = meta, size=cex,segment.color=segment.color), color="black",
-          box.padding = 1, max.overlaps = Inf, min.segment.length=1)
+                                         aes(Dim1, Dim2, label = meta,segment.color=segment.color, size=cex),color="black",
+                                         box.padding = 3, max.overlaps = Inf, min.segment.length=0.05)
       } else{
         g = g + geom_text(data=cl.center,
-          aes(Dim1, Dim2, label = meta, size=cex), color="black")
+                          aes(Dim1, Dim2, label = meta,size=cex), color="black")
       }
     }
   }
@@ -938,7 +964,7 @@ plot_RD_highlight <- function(rd.dat,
       geom_point(#colour=plot.df$color, 
         size = fg.df$cex, 
         alpha= fg.df$alpha.val,
-        shape= 19) +
+        shape= 16) +
       scale_colour_manual(values=leg.col,
                           name=NULL)
     leg.plot = leg.plot + guides(colour = guide_legend(override.aes = list(size=legend.size)))
