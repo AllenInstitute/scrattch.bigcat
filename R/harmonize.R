@@ -523,7 +523,7 @@ knn_joint <- function(comb.dat, joint.rd.dat=NULL, ref.sets=names(comb.dat$dat.l
   if(!is.null(joint.rd.dat)){
       ref.cells=unlist(ref.list)
       knn.comb=get_knn(dat=joint.rd.dat[select.cells,], ref.dat = joint.rd.dat[ref.cells,], k=k, method = self.knn.method, transposed=FALSE)
-      result = knn_jaccard_clust(knn.comb,prune=1/(ncol(knn.comb)-1), method=method)
+      result = knn_jaccard_clust(knn.comb,prune=1/(ncol(knn.comb)-1), method=method)      
     }
   else{
     if(length(select.cells) < block.size){
@@ -594,7 +594,7 @@ knn_joint <- function(comb.dat, joint.rd.dat=NULL, ref.sets=names(comb.dat$dat.l
     cl = c(setNames(as.character(cl), names(cl)), setNames(as.character(pred.cl), names(pred.cl)))
   }
   cl.platform.counts = table(comb.dat$meta.df[names(cl), "platform"],cl)
-  print(cl.platform.counts)
+  #print(cl.platform.counts)
   ###If a cluster is not present in reference sets, split the cells based on imputed cluster based on cells in reference set.
   ref.de.param.list = comb.dat$de.param.list[ref.sets]
   cl.min.cells = sapply(ref.de.param.list, function(x)x$min.cells)

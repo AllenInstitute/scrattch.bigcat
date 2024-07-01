@@ -405,15 +405,17 @@ compare_annotate <- function(cl,
                                 levels = row.names(ref.cl.df)),
                          names(ref.cl))
     }
-   else{
+    else{
      ref.cl <- setNames(factor(ref.cl), names(ref.cl))
      ref.cl.df = data.frame(cluster_id = levels(ref.cl), cluster_label=levels(ref.cl))
      row.names(ref.cl.df) = levels(ref.cl)
    }
   }
   else{
-    ref.cl.df = data.frame(cluster_id = levels(ref.cl), cluster_label=levels(ref.cl))
-    row.names(ref.cl.df) = levels(ref.cl)
+    if(is.null(ref.cl.df)){
+      ref.cl.df = data.frame(cluster_id = levels(ref.cl), cluster_label=levels(ref.cl))
+      row.names(ref.cl.df) = levels(ref.cl)
+    }
   }
   
   common.cells <- intersect(names(cl),names(ref.cl))

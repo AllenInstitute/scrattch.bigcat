@@ -191,7 +191,8 @@ jaccard_leiden <- function(dat, k = 10, weight = NULL,
 onestep_clust <- function(norm.dat, 
                           select.cells = colnames(norm.dat),
                           counts = NULL, 
-                          method = c("louvain","ward.D", "leiden","kmeans"), 
+                          method = c("louvain","ward.D", "leiden","kmeans"),
+                          knn.method="Annoy.Euclidean",
                           vg.padj.th = 0.5, 
                           dim.method = c("pca","WGCNA"), 
                           max.dim = 20, 
@@ -221,24 +222,18 @@ onestep_clust <- function(norm.dat,
     tmp =  lm_normalize(as.matrix(norm.dat[,select.cells]), regress.x[select.cells], R_2.th=0.1)
     norm.dat = tmp[[1]]
   }
-  if(length(select.cells)>sampleSize){
-    sampled.cells = sample(select.cells, pmin(length(select.cells),sampleSize))
-  }
-  else{
-    sampled.cells = select.cells
-  }
   
   ###Find high variance genes
-  tmp = get_cl_present(norm.dat, setNames(rep(1, length(select.cells)),select.cells), de.param$low.th)
-  select.genes = row.names(norm.dat)[which(tmp * length(select.cells) >= de.param$min.cells)]
+  #tmp = get_cl_present(norm.dat, setNames(rep(1, length(select.cells)),select.cells), de.param$low.th)
+  #select.genes = row.names(norm.dat)[which(tmp * length(select.cells) >= de.param$min.cells)]
   
   ###Find high variance genes.
   if(is.null(counts)){
     if(is.matrix(norm.dat)){
-      counts = 2^(norm.dat[select.genes,sampled.cells])-1
+      counts = 2^norm.dat-1
     }
     else{
-      counts = norm.dat[select.genes,sampled.cells]
+      counts = norm.dat
       counts@x = 2^(counts@x) - 1
     }
   }
@@ -273,6 +268,7 @@ onestep_clust <- function(norm.dat,
     if(length(select.genes)< de.param$min.genes){
       return(NULL)
     }
+    sampled.cells= select.cells
     rd.result = rd_PCA(norm.dat,select.genes, select.cells, sampled.cells=sampled.cells, max.pca = max.dim)    
     rd.dat = rd.result$rd.dat
     if(verbose){
@@ -295,9 +291,12 @@ onestep_clust <- function(norm.dat,
   if(is.null(max.cl)){
     max.cl = pmin(ncol(rd.dat)*2 + 1, round(length(select.cells)/de.param$min.cells))
   }
-  if(method=="louvain"){        
+  if(method %in% c("louvain","leiden")){        
     k = pmin(k.nn, round(nrow(rd.dat)/2))
-    tmp = jaccard_louvain(rd.dat, k)
+    knn.result=get_knn_batch(dat=rd.dat, ref.dat = rd.dat, k=k, method = knn.method, batch.size = 10000,transposed=FALSE,return.distance=TRUE, clear.index=TRUE)
+    knn.index=knn.result[[1]]
+    knn.dist=knn.result[[2]]
+    tmp=knn_jaccard_clust(knn.index, method=method,prune=0.05)
     if(is.null(tmp)){
       return(NULL)
     }
@@ -309,23 +308,6 @@ onestep_clust <- function(norm.dat,
       cl = setNames(tmp.cl[as.character(cl)], names(cl))
     }
   }
-  
-  else if(method=="leiden"){
-    k = pmin(k.nn, round(nrow(rd.dat)/2))
-    tmp = jaccard_leiden(rd.dat, k)
-    if(is.null(tmp)){
-      return(NULL)
-    }
-    cl = tmp$cl
-    if(length(unique(cl))>max.cl){
-      tmp.means =do.call("cbind",tapply(names(cl),cl, function(x){
-        colMeans(rd.dat[x,,drop=F])
-      },simplify=F))
-      tmp.hc = hclust(dist(t(tmp.means)), method="average")
-      tmp.cl= cutree(tmp.hc, pmin(max.cl, length(unique(cl))))
-      cl = setNames(tmp.cl[as.character(cl)], names(cl))
-    }
-  }  
   
   else if(method=="ward.D"){
     hc = hclust(dist(rd.dat),method="ward.D")
@@ -339,7 +321,7 @@ onestep_clust <- function(norm.dat,
     stop(paste("Unknown clustering method", method))
   }
   #print(table(cl))
-  merge.result=merge_cl(norm.dat, cl=cl, rd.dat=rd.dat, merge.type=merge.type, de.param=de.param, max.cl.size=max.cl.size,verbose=verbose)
+  merge.result=merge_cl(norm.dat[genes.allowed,], cl=cl, rd.dat=rd.dat, merge.type=merge.type, de.param=de.param, max.cl.size=max.cl.size,verbose=verbose)
   
   gc()
   if(is.null(merge.result))return(NULL)
@@ -410,7 +392,7 @@ iter_clust <- function(norm.dat,
       load(outfile)       
     }
     else{
-      if(length(select.cells) <= 3000){
+      if(length(select.cells) <= 2000){
         if(!is.matrix(norm.dat)){
           norm.dat = as.matrix(norm.dat[,select.cells])
         }
