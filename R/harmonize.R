@@ -594,7 +594,7 @@ knn_joint <- function(comb.dat, joint.rd.dat=NULL, ref.sets=names(comb.dat$dat.l
     cl = c(setNames(as.character(cl), names(cl)), setNames(as.character(pred.cl), names(pred.cl)))
   }
   cl.platform.counts = table(comb.dat$meta.df[names(cl), "platform"],cl)
-  #print(cl.platform.counts)
+  print(cl.platform.counts)
   ###If a cluster is not present in reference sets, split the cells based on imputed cluster based on cells in reference set.
   ref.de.param.list = comb.dat$de.param.list[ref.sets]
   cl.min.cells = sapply(ref.de.param.list, function(x)x$min.cells)
@@ -613,6 +613,15 @@ knn_joint <- function(comb.dat, joint.rd.dat=NULL, ref.sets=names(comb.dat$dat.l
     pred.prob = pred.prob %>% group_by(query) %>% filter(!nn.cl %in% bad.cl) %>% mutate(freq = n/sum(n))
     pred.df = pred.prob %>% group_by(query) %>% summarize(pred.cl = nn.cl[which.max(freq)], pred.score = max(freq))
     cl[pred.df$query]= pred.df$pred.cl
+    
+    ###deal with edge cases in which pred.cl is NA
+    bad.cells = names(cl)[is.na(cl)]
+    if(length(bad.cells)>0 & !is.null(joint.rd.dat)){
+      ref.cells=setdiff(unlist(ref.list), tmp.cells)
+      tmp.knn.comb=get_knn(dat=joint.rd.dat[bad.cells,], ref.dat = joint.rd.dat[ref.cells,], k=k, method = self.knn.method, transposed=FALSE)
+      tmp.pred.df = predict_knn(tmp.knn.comb, ref.cells, cl, mc.cores=mc.cores)$pred.df
+      cl[row.names(tmp.pred.df)] = tmp.pred.df$pred.cl
+    }
   }
   cl= merge_cl_multiple(comb.dat=comb.dat,merge.sets=merge.sets, cl=cl, anchor.genes=select.genes,mc.cores=mc.cores)  
   if(length(unique(cl))<=1){
