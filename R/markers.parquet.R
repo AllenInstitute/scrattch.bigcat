@@ -7,18 +7,35 @@ get_gene_score_ds <- function(ds, to.add, genes, cl.bin, de=NULL, max.num=1000,m
       gene.score = tmp.de %>% group_by(gene) %>% summarize(score = sum(as.numeric(max.num- rank))) %>% filter(gene %in% genes) %>% arrange(-score)   
     }
     else{
-      to.add = to.add %>% left_join(cl.bin,by=c("P1"="cl")) %>% left_join(cl.bin,by=c("P2"="cl")) 
+      to.add = to.add %>% left_join(cl.bin,by=c("P1"="cl")) %>% left_join(cl.bin,by=c("P2"="cl"))
       cl.bin.x = to.add %>% pull(bin.x) %>% unique
       cl.bin.y = to.add %>% pull(bin.y) %>% unique  
       tmp=foreach::foreach(bin1=cl.bin.x,.combine="c")%:%
         foreach::foreach(bin2=cl.bin.y,.combine="c")%dopar% {
           tmp.pairs = to.add %>%  filter(bin.x == bin1 & bin.y ==bin2)
+          if(nrow(tmp.pairs)==0){
+            return(NULL)
+          }
           tmp.de = ds %>% filter(bin.x == bin1 & bin.y ==bin2 & gene %in% genes & rank < max.num & P1 %in% tmp.pairs$P1 & P2 %in% tmp.pairs$P2) %>% collect
           tmp.de = tmp.de %>% right_join(tmp.pairs,by=c("P1","P2"))
+          if(nrow(tmp.de)==0){
+            return(NULL)
+          }
+          tmp.de = tmp.de %>% filter(!is.na(gene))
+          if(nrow(tmp.de)==0){
+            return(NULL)
+          }
+          cat(bin1, bin2, "\n")
           gene.score = tmp.de %>% group_by(gene) %>% summarize(rank.sum = sum(max.num- rank))
           list(gene.score)
         }
       gene.score=rbindlist(tmp)
+      if(is.null(gene.score)){
+        return(NULL)
+      }
+      if(nrow(gene.score)==0){
+        return(NULL)
+      }
       gene.score = gene.score %>% group_by(gene) %>% summarize(score=sum(as.numeric(rank.sum))) %>% arrange(-score)
     }
     return(gene.score)
@@ -82,7 +99,6 @@ check_pairs_lfc <- function(to.add, genes, cl.means, lfc.th=2, mc.cores=1,d="lfc
       checked.sum=0
       v = gene.bin %>% filter(bin==b) %>% pull(gene)
       for(g in v){
-        print(g)
         d1 = cl.means[g,to.add$P1]
         d2 = cl.means[g,to.add$P2]
         lfc = d1 -d2
@@ -192,7 +208,10 @@ select_markers_pair_direction_ds <- function(de.dir, add.num, genes, cl.bin, de=
     add.num = add.num %>% left_join(cl.bin,by=c("P1"="cl")) %>% left_join(cl.bin,by=c("P2"="cl"))
     gene.score= get_gene_score_ds(ds, to.add=add.num, genes=genes,cl.bin=cl.bin, de=de, mc.cores=mc.cores)
     while(nrow(add.num)>0 & length(genes)>0 & length(select.genes)< max.genes){      
-      if(is.null(gene.score) | nrow(gene.score)==0){
+      if(is.null(gene.score)){
+        break
+      }
+      if (nrow(gene.score)==0){
         break
       }
       g = as.character(gene.score$gene[1])
@@ -228,7 +247,12 @@ select_markers_pair_direction_ds <- function(de.dir, add.num, genes, cl.bin, de=
         gene.score=get_gene_score_ds(ds, to.add=add.num, genes=genes,cl.bin=cl.bin, de=de, mc.cores=mc.cores)
       }
       else{
-        rm.gene.score = get_gene_score_ds(ds, to.add=to.remove, genes=genes,cl.bin=cl.bin, de=de, mc.cores=mc.cores) %>% rename(rm.score=score)
+        rm.gene.score = get_gene_score_ds(ds, to.add=to.remove, genes=genes,cl.bin=cl.bin, de=de, mc.cores=mc.cores)
+        if(is.null(rm.gene.score)){
+          gene.score = gene.score %>% filter(gene !=g)
+          next
+        }
+        rm.gene.score=rm.gene.score %>% rename(rm.score=score)
         tmp = gene.score %>% filter(!gene ==g) %>% left_join(rm.gene.score) %>% mutate(rm.score = ifelse(is.na(rm.score), 0, rm.score)) %>% mutate(new.score = score - rm.score) 
         tmp = tmp%>% select(gene, new.score) %>% rename(score=new.score) %>% filter(score > 0) %>% arrange(-score)
         gene.score=tmp

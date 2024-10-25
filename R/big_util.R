@@ -624,18 +624,22 @@ filter_cols <- function(col.df, cols)
     return(list(cols=cols, col.bin=col.bin, select.j=select.j))
   }
 
-
-init_big.dat_parquet <- function(big.dat.parquet)
+init_big.dat_parquet <- function(big.dat.parquet, dir=NULL, col.fn=file.path(dir, "samples.parquet"), row.fn=file.path(dir, "gene.parquet"), dat.dir = file.path(dir, "norm.dat_parquet"),logNormal=TRUE)
   {
     library(arrow)
     library(data.table)
-    dir = big.dat.parquet$parquet.dir
-    col.fn = big.dat.parquet$col.fn
-    row.fn = big.dat.parquet$row.fn
-    if(!dir.exists(dir)){
+    if(!is.null(big.dat.parquet)){
+      dat.dir = big.dat.parquet$parquet.dir
+      col.fn = big.dat.parquet$col.fn
+      row.fn = big.dat.parquet$row.fn
+    }
+    else{
+      big.dat.parquet = list(type="parquet",parquet.dir=dat.dir, col.fn=col.fn, row.fn=row.fn, logNormal=logNormal)
+    }
+    if(!dir.exists(dat.dir)){
       stop(paste("Data directory ", dir, "does not exists\n"))
     }
-    ds = open_dataset(dir)
+    ds = open_dataset(dat.dir)
     if(!file.exists(col.fn)){
       stop(paste("col.fn", col.fn, "does not exists\n"))
     }
@@ -646,7 +650,9 @@ init_big.dat_parquet <- function(big.dat.parquet)
     row.df = read_parquet(row.fn)
     big.dat.parquet$ds = ds
     big.dat.parquet$col.df = col.df
-    big.dat.parquet$row.df = row.df    
+    big.dat.parquet$row.df = row.df
+    big.dat.parquet$row_id = row.df$row_name
+    big.dat.parquet$col_id = col.df$col_name
     return(big.dat.parquet)
   }
 
@@ -703,7 +709,7 @@ get_cols_parquet <- function(big.dat.parquet, cols, rows=NULL,keep.col=FALSE, sp
     registerDoMC(cores=min(mc.cores, length(col.bin)))
     tmp <- foreach(c.id = col.bin, .combine="c") %:%      
       foreach(r.id =row.bin, .combine="c") %dopar% {
-        mat.df = ds %>% filter(r.id==row_bin & c.id==col_bin  & j %in% select.j & i %in% select.i) %>% select(i,j,x) %>% collect()
+        mat.df = ds %>% filter(row_bin == r.id & col_bin==c.id  & j %in% select.j & i %in% select.i) %>% select(i,j,x) %>% collect()
         list(mat.df)
       }
     

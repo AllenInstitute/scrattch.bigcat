@@ -703,6 +703,7 @@ build_train_index_bs <- function(cl.dat, method= c("Annoy.Cosine","cor","Annoy.E
 
 map_cells_knn <- function(test.dat, cl.dat, train.index=NULL, method = c("Annoy.Cosine","cor"), batch.size=5000, mc.cores=1)
   {
+    method = method[[1]]
     cl.knn = get_knn_batch(test.dat, cl.dat, k=1, index=train.index, method=method, transposed=TRUE, batch.size=batch.size, mc.cores=mc.cores,return.distance=TRUE)
     knn.index = cl.knn[[1]]
     knn.dist = cl.knn[[2]]

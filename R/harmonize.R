@@ -618,7 +618,7 @@ knn_joint <- function(comb.dat, joint.rd.dat=NULL, ref.sets=names(comb.dat$dat.l
     bad.cells = names(cl)[is.na(cl)]
     if(length(bad.cells)>0 & !is.null(joint.rd.dat)){
       ref.cells=setdiff(unlist(ref.list), tmp.cells)
-      tmp.knn.comb=get_knn(dat=joint.rd.dat[bad.cells,], ref.dat = joint.rd.dat[ref.cells,], k=k, method = self.knn.method, transposed=FALSE)
+      tmp.knn.comb=get_knn(dat=joint.rd.dat[bad.cells,,drop=FALSE], ref.dat = joint.rd.dat[ref.cells,,drop=FALSE], k=k, method = self.knn.method, transposed=FALSE)
       tmp.pred.df = predict_knn(tmp.knn.comb, ref.cells, cl, mc.cores=mc.cores)$pred.df
       cl[row.names(tmp.pred.df)] = tmp.pred.df$pred.cl
     }
@@ -691,7 +691,8 @@ i_harmonize<- function(comb.dat, select.cells=comb.dat$all.cells, ref.sets=names
       print(platform.size)
       pass.th = sapply(select.sets, function(set)platform.size[[set]] >= comb.dat$de.param.list[[set]]$min.cells)
       pass.th2 = sapply(ref.sets, function(set)platform.size[[set]] >= comb.dat$de.param.list[[set]]$min.cells*2)
-      if(sum(pass.th) > 1 & sum(pass.th[ref.sets]) == length(ref.sets) & sum(pass.th2) >= 1){
+      #if(sum(pass.th) > 1 & sum(pass.th[ref.sets]) == length(ref.sets) & sum(pass.th2) >= 1){
+      if(sum(pass.th2) >= 1){
         computed=FALSE
         fn = file.path(dir, paste0(tmp.prefix, ".rda"))
         print(fn)

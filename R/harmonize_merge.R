@@ -530,7 +530,7 @@ merge_cl_multiple <- function(comb.dat, merge.sets, cl, anchor.genes, verbose=TR
       sim = p[,3]
       if (i == 1 | merge.sc[i] < de.score.th/2 & sum(c(x,y) %in% merged) == 0){              
         if (verbose > 0) {
-          cat("Merge ", x, y, merge.sc[i], sim, sum(cl == x),  "cells", sum(cl == y), "cells", "\n")
+          cat("Merge ", x, y, merge.sc[i], sim, length(which(cl == x)),  "cells", length(which(cl == y)), "cells", "\n")
         }         
         update.result=merge_x_y(x=x, y=y)
         if(is.null(update.result)){
