@@ -91,51 +91,7 @@ impute_knn_global_big <- function(comb.dat, split.results, select.genes, select.
     return(impute.dat.list)
   }
 
-impute_cross_big <- function(comb.dat, impute.dat.big, split.results, select.cells, ref.set,select.genes=impute.dat.list[[1]]$row_id, ...)
-  {
-    for(x in names(split.results)){      
-      result = split.results[[x]]
-      impute.genes = intersect(c(result$impute.genes,result$knn.genes), select.genes)
-      cat("split group",x,length(impute.genes),"\n")
-      cl = result$cl
-      if(length(result$impute.genes)==0){
-        next
-      }
-      knn = result$knn
-      ref.big.dat = comb.dat$dat.list[[ref.set]]
-      if(is.null(knn)){
-        ref.cells = intersect(names(cl), ref.big.dat$col_id)
-        select.ref.cells = sample_cells(cl[ref.cells], 100)
-        select.query.cells= intersect(names(cl), query.cells)
-        if(length(select.query.cells)==0){
-          next
-        }
-        ref.dat = get_logNormal(ref.big.dat, select.ref.cells, knn.genes)
-        knn=get_knn_batch_big(query.dat, ref.dat = ref.dat, select.cells=select.query.cells, mc.cores=mc.cores,...)
-        split.results[[g]]$knn = knn
-        split.results[[g]]$ref.list = list(ref.cells)
-        names(split.result[[g]]$ref.list) = ref.set
-      }
-      else{
-        ref.cells = result$ref.list[[ref.set]]
-      }
-      tmp.cells = row.names(knn)
-      query.cells = intersect(tmp.cells[comb.dat$meta.df[tmp.cells,"platform"] != ref.set], select.cells)
-      select.cols = comb.dat$meta.df[comb.dat$all.cells[knn[1,]],"platform"] == ref.set
-      if(sum(select.cols)==0){
-        next
-      }
-      if(length(query.cells)==0){
-        next
-      }
-      select.knn = knn[query.cells,select.cols,drop=F]
-      impute_dat_big(impute.dat.big, ref.dat=impute.dat.big, knn=select.knn, ref.cells=ref.cells,select.genes=impute.genes)                                 
-    }
-    return(impute.dat.big)
-  }
-
-
-impute_cross_knn_big <- function(split.results, ref.dat, query.dat, query.cells, impute.genes = split.results[[1]]$impute.markers, prefix=format(Sys.time(), '%Y_%m_%d.%H.%M'),k=15,method = "Annoy.Cosine", mc.cores=10, clear.index=TRUE, impute.dat.big=NULL)
+impute_cross_knn_big <- function(split.results, ref.dat, query.dat, query.cells, impute.genes = split.results[[1]]$impute.genes, prefix=format(Sys.time(), '%Y_%m_%d.%H.%M'),k=15,method = "Annoy.Cosine", mc.cores=10, clear.index=TRUE, impute.dat.big=NULL)
   {
     if(is.null(impute.dat.big)){
       impute.dat.big = create_big.dat_fbm(col.id=query.cells, row.id=impute.genes,backingfile=paste0("impute_data_",prefix))
@@ -143,7 +99,7 @@ impute_cross_knn_big <- function(split.results, ref.dat, query.dat, query.cells,
     for(g in names(split.results)){
       result = split.results[[g]]
       tmp.cl=result$cl
-      select.impute.genes = intersect(result$impute.markers,impute.genes)
+      select.impute.genes = intersect(result$impute.genes,impute.genes)
       knn.genes = result$knn.genes
       if(length(knn.genes)<5){
         next

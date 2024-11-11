@@ -656,6 +656,19 @@ init_big.dat_parquet <- function(big.dat.parquet, dir=NULL, col.fn=file.path(dir
     return(big.dat.parquet)
   }
 
+
+init_big.dat_fbm <- function(big.dat.fbm)
+  {
+    library(bigstatsr)
+    fbm = big.dat.fbm$fbm
+    if(is.null(fbm$rds)){
+      fbm = fbm$save()
+    }
+    fbm = big_attach(fbm$rds)
+    big.dat.fbm=fbm
+    return(big.dat.fbm)
+  }
+
 get_cols_parquet <- function(big.dat.parquet, cols, rows=NULL,keep.col=FALSE, sparse=TRUE, mc.cores=5)
   {
     library(data.table)
