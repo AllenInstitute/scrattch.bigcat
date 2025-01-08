@@ -118,7 +118,7 @@ find_vg <- function(dat,
 #' 
 compute_vg_stats <- function(dat,
                              verbose = FALSE) {
-  
+  scaled_data = dat
   if(verbose) { cat("Computing scaled means\n") }
   means <- gene_means(scaled_data)
   
