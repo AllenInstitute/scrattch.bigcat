@@ -104,7 +104,7 @@ plot_constellation <- function (knn.cl.df,
                                 max_size = 10, 
                                 label_repel = FALSE, 
                                 node_trans = "sqrt", 
-                                return.list = F, 
+                                return.list = T, 
                                 highlight_nodes = NULL, 
                                 highlight_color = "red", 
                                 highlight_width = 1, 
@@ -124,9 +124,10 @@ plot_constellation <- function (knn.cl.df,
   
   #st = format(Sys.time(), "%Y%m%d_%H%M%S")
   st=prefix
-  if (!file.exists(out.dir)) {
+  if(!is.null(out.dir)){
+      if (!file.exists(out.dir)) {
     dir.create(out.dir)
-  }
+  }}
   
   ###==== Cluster nodes will represent both cluster.size (width of point) and edges within cluster (stroke of point)
   
@@ -159,7 +160,7 @@ plot_constellation <- function (knn.cl.df,
   
   #+ theme_void()
   #p.nodes
-  if (plot.parts == TRUE) {
+  if (plot.parts == TRUE & !is.null(out.dir)) {
     ggsave(file.path(out.dir,paste0(st,"nodes.org.pos.pdf")), p.nodes, width = plot.width, height = plot.height, units="cm",useDingbats=FALSE) }
   
   ###==== extract node size/stroke width to replot later without scaling
@@ -251,7 +252,7 @@ plot_constellation <- function (knn.cl.df,
   nodes$node.width <- nodes$size 
   
   
-  if (plot.parts == TRUE) { 
+  if (plot.parts == TRUE & !is.null(out.dir)) { 
     if (node.dodge == TRUE) {
       write.csv(nodes, file=file.path(out.dir,paste0(st,"nodes.dodge.csv"))) }
     else {
@@ -423,7 +424,7 @@ plot_constellation <- function (knn.cl.df,
     
   }
   
-  if (plot.parts == TRUE) {
+  if (plot.parts == TRUE && !is.null(out.dir)) {
     write.csv(poly.Edges, file=file.path(out.dir,paste0(st,"poly.edges.csv"))) }
   
   #############################
@@ -606,7 +607,7 @@ plot_constellation <- function (knn.cl.df,
   }
   
   segment.color = NA
-  if (isTRUE(plot.parts)) {
+  if (isTRUE(plot.parts) && !is.null(parts)) {
     ggsave(file.path(out.dir, paste0(st, ".comb.constellation.pdf")), 
            plot.all, width = plot.width, height = plot.height, 
            units = "cm", useDingbats = FALSE)
@@ -706,7 +707,7 @@ plot_constellation <- function (knn.cl.df,
   }
   layout_legend <- rbind(c(1, 3, 3, 3, 3),
                          c(2, 3, 3, 3, 3))
-  if (plot.parts == TRUE) {
+  if (plot.parts == TRUE & !is.null(out.dir)) {
     ggsave(file.path(out.dir, paste0(st, ".comb.LEGEND.pdf")), 
            gridExtra::marrangeGrob(list(dot.size.legend, 
                                         edge.width.legend, 
@@ -718,10 +719,13 @@ plot_constellation <- function (knn.cl.df,
   }
   g2 <- gridExtra::arrangeGrob(grobs = list(dot.size.legend, 
                                             edge.width.legend, cl.center.legend), layout_matrix = layout_legend)
-  ggsave(file.path(out.dir, paste0(st, ".constellation.pdf")), 
+  if(!is.null(out.dir)){
+      ggsave(file.path(out.dir, paste0(st, ".constellation.pdf")), 
          gridExtra::marrangeGrob(list(plot.all, g2), nrow = 1, ncol = 1,top=NULL), 
          width = plot.width, height = plot.height, units = "cm", 
          useDingbats = FALSE)
+  }
+
   if (return.list == TRUE) {
     return(list(constellation = plot.all, edges.df = poly.Edges, 
                 nodes.df = nodes))
