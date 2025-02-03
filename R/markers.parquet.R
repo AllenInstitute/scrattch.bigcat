@@ -312,6 +312,7 @@ select_markers_pair_group_top_ds <- function(g1,g2,ds, genes, cl.bin, select.sig
 #############
 select_markers_pair_group_ds <- function(g1,g2,de.dir, genes, cl.bin, n.markers=20,select.sign=c("up","down"),max.genes=50,default.markers=NULL, cl.means=NULL,lfc.th=2, mc.cores=1, ds=NULL)
   {
+    cat("mc.cores=", mc.cores, "\n")
     if(is.null(ds)){
       ds = open_dataset(de.dir)
     }
@@ -393,13 +394,15 @@ select_N_markers_ds<- function(de.dir, select.cl=NULL,pair.num=1, add.num=NULL, 
 #' @export
 #'
 #' @examples
-select_pos_markers_ds<- function(de.dir, cl, select.cl, genes, cl.bin, n.markers=1,  mc.cores=1,out.dir="cl.markers",...)
+select_pos_markers_ds<- function(de.dir, cl, select.cl, genes, cl.bin, ds=NULL,n.markers=1,  mc.cores=1,out.dir="cl.markers",...)
   {
     library(parallel)    
     require(doMC)
     require(foreach)
     registerDoMC(cores=mc.cores)
-    ds = open_dataset(de.dir)
+    if(is.null(ds)){
+      ds = open_dataset(de.dir)
+    }
     if (!dir.exists(out.dir)) {
         dir.create(out.dir)
     }
@@ -410,7 +413,7 @@ select_pos_markers_ds<- function(de.dir, cl, select.cl, genes, cl.bin, n.markers
       g1=x
       g2 = setdiff(cl, x)
       #select.de = ds %>% filter(bin.x==cl.bin.x & P1==g1 & P2 %in% g2) %>% collect()
-      markers <- select_markers_pair_group_ds(g1,g2, de.dir=de.dir,  genes=genes, cl.bin=cl.bin, n.markers=n.markers,select.sign="up",...)
+      markers <- select_markers_pair_group_ds(g1,g2, de.dir=de.dir,  ds=ds, genes=genes, cl.bin=cl.bin, n.markers=n.markers,select.sign="up",...)
       save(markers, file=file.path(out.dir, paste0(x, ".markers.rda")))
       tmp=list(markers)
       names(tmp)=x

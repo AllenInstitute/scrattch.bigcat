@@ -519,12 +519,25 @@ knn_joint <- function(comb.dat, joint.rd.dat=NULL, ref.sets=names(comb.dat$dat.l
   if(length(ref.sets)==0){
     return(NULL)
   }
+
   ref.list = ref.list[ref.sets]
   if(!is.null(joint.rd.dat)){
-      ref.cells=unlist(ref.list)
-      knn.comb=get_knn(dat=joint.rd.dat[select.cells,], ref.dat = joint.rd.dat[ref.cells,], k=k, method = self.knn.method, transposed=FALSE)
-      result = knn_jaccard_clust(knn.comb,prune=1/(ncol(knn.comb)-1), method=method)      
-    }
+    ref.list =  sample_sets_list(cells.list[ref.sets], comb.dat$cl.list[ref.sets], sample.size=sample.size, cl.sample.size = cl.sample.size)
+    ref.cells=unlist(ref.list)
+    knn.comb=get_knn(dat=joint.rd.dat[select.cells,], ref.dat = joint.rd.dat[ref.cells,], k=k, method = self.knn.method, transposed=FALSE)
+    idx = match(ref.cells, comb.dat$all.cells)      
+    knn.comb = matrix(idx[knn.comb], nrow=nrow(knn.comb), dimnames=list(row.names(knn.comb), NULL))
+    sampled.cells = unlist(cells.list)
+    if(length(sampled.cells)> sample.size){
+      tmp.list =  sample_sets_list(cells.list, comb.dat$cl.list[select.sets], sample.size=sample.size, cl.sample.size = cl.sample.size)
+      sampled.cells = unlist(tmp.list)
+      if(length(sampled.cells)>jaccard.sampleSize){
+        sampled.cells = sample(sampled.cells, jaccard.sampleSize)
+      }
+      sampled.cells=union(sampled.cells, unlist(ref.list))
+    }     
+    result = knn_jaccard_clust(knn.comb[sampled.cells,],prune=1/(ncol(knn.comb)-1), method=method)
+  }
   else{
     if(length(select.cells) < block.size){
       mc.cores=1
@@ -583,6 +596,7 @@ knn_joint <- function(comb.dat, joint.rd.dat=NULL, ref.sets=names(comb.dat$dat.l
       sampled.cells=union(sampled.cells, unlist(ref.list))
     }     
     result = knn_jaccard_clust(knn.comb[sampled.cells,],prune=1/(ncol(knn.comb)-1), method=method)
+    result$select.genes= select.genes
   }
   result$knn = knn.comb
   cl = result$cl
@@ -595,7 +609,7 @@ knn_joint <- function(comb.dat, joint.rd.dat=NULL, ref.sets=names(comb.dat$dat.l
   }
   cl.platform.counts = table(comb.dat$meta.df[names(cl), "platform"],cl)
   print(cl.platform.counts)
-  ###If a cluster is not present in reference sets, split the cells based on imputed cluster based on cells in reference set.
+###If a cluster is not present in reference sets, split the cells based on imputed cluster based on cells in reference set.
   ref.de.param.list = comb.dat$de.param.list[ref.sets]
   cl.min.cells = sapply(ref.de.param.list, function(x)x$min.cells)
   cl.big= cl.platform.counts[ref.sets,,drop=F] >= cl.min.cells
@@ -623,14 +637,12 @@ knn_joint <- function(comb.dat, joint.rd.dat=NULL, ref.sets=names(comb.dat$dat.l
       cl[row.names(tmp.pred.df)] = tmp.pred.df$pred.cl
     }
   }
-  cl= merge_cl_multiple(comb.dat=comb.dat,merge.sets=merge.sets, cl=cl, anchor.genes=select.genes,mc.cores=mc.cores)  
+  cl= merge_cl_multiple(comb.dat=comb.dat,merge.sets=merge.sets, cl=cl, anchor.genes=select.genes,mc.cores=mc.cores, joint.rd.dat=joint.rd.dat)  
   if(length(unique(cl))<=1){
     return(NULL)
   }
   print(table(cl))
   result$cl = cl
-  result$select.genes= select.genes
-  result$ref.de.param.list = ref.de.param.list
   return(result)
 }
  

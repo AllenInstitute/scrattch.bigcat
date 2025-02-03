@@ -303,7 +303,7 @@ get_cl_stats_list <- function(comb.dat, merge.sets, cl, max.cl.size=300,mc.cores
 ##' @param compare.k 
 ##' @return 
 ##' @author Zizhen Yao
-merge_cl_multiple <- function(comb.dat, merge.sets, cl, anchor.genes, verbose=TRUE, lfc.conservation.th=0.7, merge.type="undirectional", de.method="fast_limma",max.cl.size=300, compare.k=4, mc.cores=5, pairBatch=100, cl.stats.list=NULL)
+merge_cl_multiple <- function(comb.dat, merge.sets, cl, anchor.genes=NULL, joint.rd.dat=NULL, verbose=TRUE, lfc.conservation.th=0.7, merge.type="undirectional", de.method="fast_limma",max.cl.size=300, compare.k=4, mc.cores=5, pairBatch=100, cl.stats.list=NULL)
 {
   #print("merge_cl_multiple")
   cl = setNames(as.character(cl),names(cl))
@@ -330,21 +330,32 @@ merge_cl_multiple <- function(comb.dat, merge.sets, cl, anchor.genes, verbose=TR
         cl.means.list[[set]][[x]] = get_weighted_means(as.matrix(cl.means.list[[set]][, p]), tmp.cl.size[p])
         cl.sqr.means.list[[set]][[x]] = get_weighted_means(as.matrix(cl.sqr.means.list[[set]][, p]), tmp.cl.size[p])
         cl.present.list[[set]][[x]] = get_weighted_means(as.matrix(cl.present.list[[set]][, p]), tmp.cl.size[p])
-        cl.rd.list[[set]][[x]] = get_weighted_means(as.matrix(cl.rd.list[[set]][,p]), cl.size[p])
+        if(is.null(joint.rd.dat)){
+          cl.rd.list[[set]][[x]] = get_weighted_means(as.matrix(cl.rd.list[[set]][,p]), cl.size[p])
+        }
       }
       else if (y %in% names(tmp.cl.size)){
         cl.means.list[[set]][[x]] = cl.means.list[[set]][[y]] 
         cl.sqr.means.list[[set]][[x]] = cl.sqr.means.list[[set]][[y]]
         cl.present.list[[set]][[x]] = cl.present.list[[set]][[y]]
-        cl.rd.list[[set]][[x]] = cl.rd.list[[set]][y]
+        if(is.null(joint.rd.dat)){
+          cl.rd.list[[set]][[x]] = cl.rd.list[[set]][y]
+        }
       }
       cl.means.list[[set]][[y]] = NULL
       cl.sqr.means.list[[set]][[y]] = NULL
       cl.present.list[[set]][[y]] = NULL
-      cl.rd.list[[set]][[y]] = NULL        
+      if(is.null(joint.rd.dat)){
+        cl.rd.list[[set]][[y]] = NULL
+      }
     }
     cl[cl == y] = x
-    return(list(cl=cl, cl.rd.list=cl.rd.list, cl.means.list=cl.means.list, cl.present.list = cl.present.list, cl.sqr.means.list = cl.sqr.means.list))
+    if(!is.null(joint.rd.dat)){
+      cl.rd[[x]] = get_weighted_means(as.matrix(cl.rd[,p]), cl.size[p])
+      cl.rd[[y]] =  NULL
+      cl.rd.list=NULL
+    }
+    return(list(cl=cl, cl.rd.list=cl.rd.list, cl.rd=cl.rd, cl.means.list=cl.means.list, cl.present.list = cl.present.list, cl.sqr.means.list = cl.sqr.means.list))
   }
   
   add_pairs_de_genes <- function(de.genes.list, new.pairs)
@@ -395,7 +406,7 @@ merge_cl_multiple <- function(comb.dat, merge.sets, cl, anchor.genes, verbose=TR
     return(NULL)
   }
 
-  ###Merge small cells based on KNN prediction
+  ###Merge small clusters based on KNN prediction
   cl.small.cells= names(cl)[cl %in% cl.small]
   cl.big.cells= names(cl)[cl %in% cl.big]
   if(is.null(cl.stats.list)){
@@ -404,45 +415,59 @@ merge_cl_multiple <- function(comb.dat, merge.sets, cl, anchor.genes, verbose=TR
   cl.means.list      = cl.stats.list$cl.means.list
   cl.present.list    = cl.stats.list$cl.present.list
   cl.sqr.means.list  = cl.stats.list$cl.sqr.means.list
-  
+
   if(length(cl.small)>0){
-    cl.small.cells.byplatform = split(cl.small.cells, as.character(comb.dat$meta.df[cl.small.cells, "platform"]))
-    cl.big.cells.byplatform = split(cl.big.cells, comb.dat$meta.df[cl.big.cells, "platform"])
-    unresolved.cells=c()
-    new.cl = c()
-    for(set in names(cl.small.cells.byplatform)){
-      query.cells =cl.small.cells.byplatform[[set]]
-      if(length(query.cells)==0){
-        next
-      }
-      cl.dat = cl.means.list[[set]]
-      cl.dat = cl.dat[,colnames(cl.dat)%in% cl.big]
-      if(is.null(cl.dat)|ncol(cl.dat)==0){
-        unresolved.cells = c(unresolved.cells, query.cells)
-        next
-      }
-      cl.dat = cl.dat[intersect(anchor.genes,row.names(cl.dat)),]
-      if(comb.dat$dat.list[[set]]$type=="mem"){
-        dat = comb.dat$dat.list[[set]][row.names(cl.dat),query.cells]
-        map.df = map_cells_knn(dat, cl.dat, mc.cores=mc.cores)
-      }
-      else{
-        if(length(query.cells)<10000){
-          dat = get_logNormal(comb.dat$dat.list[[set]], cols=query.cells, rows=row.names(cl.dat))
+    ######if there is a joint space, use it to compute cluster centroid for mapping
+    ######else use marker gene expressiona as cluster centroid for mapping within each modality. 
+    if(!is.null(joint.rd.dat)){
+      cl.dat = get_cl_means(joint.rd.dat, cl)
+      query.dat = t(joint.rd.dat[cl.small.cells,,drop=FALSE])
+      map.df = map_cells_knn(query.dat, cl.dat[,cl.big,drop=FALSE])
+      new.cl = setNames(map.df$cl, map.df$sample_id)      
+    }
+    else{       
+      cl.small.cells.byplatform = split(cl.small.cells, as.character(comb.dat$meta.df[cl.small.cells, "platform"]))
+      cl.big.cells.byplatform = split(cl.big.cells, comb.dat$meta.df[cl.big.cells, "platform"])
+      unresolved.cells=c()
+      new.cl = c()
+      for(set in names(cl.small.cells.byplatform)){
+        query.cells =cl.small.cells.byplatform[[set]]
+        if(length(query.cells)==0){
+          next
+        }
+        else{
+          cl.dat = cl.means.list[[set]]
+        }
+        cl.dat = cl.dat[,colnames(cl.dat)%in% cl.big]
+        if(is.null(cl.dat)|ncol(cl.dat)==0){
+          unresolved.cells = c(unresolved.cells, query.cells)
+          next
+        }
+        cl.dat = cl.dat[intersect(anchor.genes,row.names(cl.dat)),]
+        if(comb.dat$dat.list[[set]]$type=="mem"){
+          dat = comb.dat$dat.list[[set]][row.names(cl.dat),query.cells]
           map.df = map_cells_knn(dat, cl.dat, mc.cores=mc.cores)
         }
         else{
-          map.df = map_cells_knn_big(comb.dat$dat.list[[set]], cl.dat, select.cells = query.cells, mc.cores=mc.cores)
+          if(length(query.cells)<10000){
+            dat = get_logNormal(comb.dat$dat.list[[set]], cols=query.cells, rows=row.names(cl.dat))
+            map.df = map_cells_knn(dat, cl.dat, mc.cores=mc.cores)
+          }
+          else{
+            map.df = map_cells_knn_big(comb.dat$dat.list[[set]], cl.dat, select.cells = query.cells, mc.cores=mc.cores)
+          }
         }
+        map.cl = setNames(map.df$cl, map.df$sample_id)      
+        new.cl = c(new.cl, map.cl)
       }
-      map.cl = setNames(map.df$cl, map.df$sample_id)      
-      new.cl = c(new.cl, map.cl)
+      ####Used to assign all cells in a small clusters to the best matching big cluster. Now allow assign individual cells in a small cluster independently. 
+      #if(length(unresolved.cells)>0){
+      #  tb = table(cl[names(new.cl)], new.cl)
+      #  map.cl = setNames(colnames(tb)[apply(tb, 1, which.max)], row.names(tb))
+      #  new.cl[unresolved.cells] = map.cl[as.character(cl[unresolved.cells])]
+      #}
     }
-    if(length(unresolved.cells)>0){
-      tb = table(cl[names(new.cl)], new.cl)
-      map.cl = setNames(colnames(tb)[apply(tb, 1, which.max)], row.names(tb))
-      new.cl[unresolved.cells] = map.cl[as.character(cl[unresolved.cells])]
-    }
+    ### Update cluster statistics based on updated cluster membership
     new.cl.stats.list   = get_cl_stats_list(comb.dat, merge.sets, new.cl, use.min.cells=FALSE)
     new.cl.means.list   = new.cl.stats.list$cl.means.list
     new.cl.present.list = new.cl.stats.list$cl.present.list
@@ -464,18 +489,30 @@ merge_cl_multiple <- function(comb.dat, merge.sets, cl, anchor.genes, verbose=TR
     }
     cl[names(new.cl)]=new.cl    
   }
+  ####Deprecated code for computating cl statistics from scratch. 
   #cl.stats.list = get_cl_stats_list(comb.dat, merge.sets, cl)
   #cl.means.list      = cl.stats.list$cl.means.list
   #cl.present.list    = cl.stats.list$cl.present.list
   #cl.sqr.means.list  = cl.stats.list$cl.sqr.means.list
-
-  cl.rd.list = sapply(cl.means.list, function(x){
-    x[row.names(x) %in% anchor.genes,,drop=F]
-  },simplify=FALSE)
+  
+  if(is.null(joint.rd.dat)){
+    cl.rd.list = sapply(cl.means.list, function(x){
+      x[row.names(x) %in% anchor.genes,,drop=F]
+    },simplify=FALSE)
+  }
+  else{
+    cl.rd = as.data.frame(get_cl_means(joint.rd.dat, cl))
+  }
+  
   de.pairs = NULL
   de.genes.list = sapply(merge.sets, function(x)list(),simplify=F)
   while(length(unique(cl)) > 1) {
-    cl.sim=combine_cl_sim(cl.rd.list, cl, comb.dat)
+    if(!is.null(joint.rd.dat)){
+      cl.sim=get_cl_sim(cl.rd)
+    }
+    else{
+      cl.sim=combine_cl_sim(cl.rd.list, cl, comb.dat)
+    }
     if (length(cl.sim)==0) return(NULL)
     ###Find pairs of nearest neighbrs as candidates for merging.
     k.tmp = pmin(compare.k, ncol(cl.sim))
@@ -484,7 +521,13 @@ merge_cl_multiple <- function(comb.dat, merge.sets, cl, anchor.genes, verbose=TR
     merge.pairs = data.frame(P1=rep(row.names(cl.sim), length(k.tmp)), P2=nn,stringsAsFactors=FALSE)
     merge.pairs = merge.pairs[merge.pairs[,1]!=merge.pairs[,2],]
     merge.pairs$sim = get_pair_matrix(cl.sim, merge.pairs$P1, merge.pairs$P2)
-    
+    ##filter pairs that do not have overlapping modality.
+    cl.size.platform = table(cl, as.character(comb.dat$meta.df[names(cl), "platform"]))
+    merge.pairs.select = sapply(colnames(cl.size.platform), function(set){
+      pmin(cl.size.platform[as.character(merge.pairs$P1), set], cl.size.platform[as.character(merge.pairs$P2), set]) >= comb.dat$de.param.list[[set]]$min.cells
+    })
+    merge.pairs.select = apply(merge.pairs.select, 1, any)
+    merge.pairs = merge.pairs[merge.pairs.select,,drop=FALSE]
     tmp1 = pmin(merge.pairs[, 1], merge.pairs[, 2])
     tmp2 = pmax(merge.pairs[, 1], merge.pairs[, 2])
     merge.pairs$P1 = tmp1
@@ -495,7 +538,10 @@ merge_cl_multiple <- function(comb.dat, merge.sets, cl, anchor.genes, verbose=TR
     row.names(merge.pairs) = p[!duplicated(p)]
     merge.pairs = merge.pairs[order(merge.pairs$sim, decreasing = T), ,drop=F]
     merge.pairs = merge.pairs[!row.names(merge.pairs) %in% row.names(de.pairs),,drop=F]
-
+    if(nrow(merge.pairs)==0){
+      break
+    }
+    
     while(nrow(merge.pairs) > 0){
       cat("Merge.pairs", nrow(merge.pairs), "\n")
       new.pairs = head(row.names(merge.pairs),pairBatch)
@@ -538,6 +584,7 @@ merge_cl_multiple <- function(comb.dat, merge.sets, cl, anchor.genes, verbose=TR
         }
         cl = update.result$cl
         cl.rd.list = update.result$cl.rd.list
+        cl.rd = update.result$cl.rd
         cl.means.list = update.result$cl.means.list
         cl.present.list = update.result$cl.present.list
         cl.sqr.means.list = update.result$cl.sqr.means.list

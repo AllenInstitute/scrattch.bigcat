@@ -718,6 +718,7 @@ map_cells_knn_bs <- function(test.dat, iter=100,cl.dat=NULL,train.index.bs=NULL,
     require(foreach)
     mc.cores = min(mc.cores, length(train.index.bs))
     registerDoMC(cores=mc.cores)
+    method= method[[1]]
     ###for each cluster, find markers that discriminate it from other types
     if(!is.null(train.index.bs)){
       iter = length(train.index.bs)
