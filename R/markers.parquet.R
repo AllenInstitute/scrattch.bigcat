@@ -84,7 +84,7 @@ update_gene_score_ds <- function(gene.score, ds, to.remove, cl.bin, de=NULL, max
   }
 
 
-check_pairs_lfc <- function(to.add, genes, cl.means, lfc.th=2, mc.cores=1,d="lfc")
+check_pairs_lfc <- function(to.add, genes, cl.means, lfc.th=2, mc.cores=1)
   {
 
     require(doMC)
@@ -220,7 +220,7 @@ select_markers_pair_direction_ds <- function(de.dir, add.num, genes, cl.bin, de=
       }
       print(g)      
       if(is.null(cl.means)){
-        new.checked = check_pairs_ds(de.dir, to.add=add.num %>% select(P1,P2), genes=g,cl.bin=cl.bin,de=de, mc.cores=mc.cores)
+        new.checked = check_pairs_ds(de.dir, to.add=add.num %>% select(P1,P2), genes=g,cl.bin=cl.bin,de=de, ds=ds,mc.cores=mc.cores)
       }
       else{
         new.checked = check_pairs_lfc(to.add=add.num %>% select(P1,P2), genes=g,cl.means=cl.means, lfc.th=lfc.th,mc.cores=mc.cores)
@@ -331,9 +331,12 @@ select_markers_pair_group_ds <- function(g1,g2,de.dir, genes, cl.bin, n.markers=
       }
       markers = default.markers
     }
+    if(is.null(markers)){
+      return(markers)
+    }
     add.num$num = n.markers
     if(is.null(cl.means)){
-      new.checked = check_pairs_ds(de.dir, to.add=add.num %>% select(P1,P2),genes=markers,cl.bin=cl.bin,mc.cores=mc.cores)
+      new.checked = check_pairs_ds(de.dir, to.add=add.num %>% select(P1,P2),genes=markers,cl.bin=cl.bin,ds=ds,mc.cores=mc.cores)
     }
     else{
       new.checked = check_pairs_lfc(to.add=add.num %>% select(P1,P2),genes=markers,cl.means=cl.means, lfc.th=lfc.th,mc.cores=mc.cores)
@@ -352,7 +355,7 @@ select_markers_pair_group_ds <- function(g1,g2,de.dir, genes, cl.bin, n.markers=
     return(markers)
   }
 
-select_N_markers_ds<- function(de.dir, select.cl=NULL,pair.num=1, add.num=NULL, genes, cl.bin, default.markers=NULL,...)
+select_N_markers_ds<- function(de.dir, select.cl=NULL,pair.num=1, add.num=NULL, genes, cl.bin, default.markers=NULL,cl.means=NULL,...)
   {
     if(is.null(add.num)){
       add.num = as.data.frame(create_pairs(select.cl, direction="directional"))
@@ -363,7 +366,7 @@ select_N_markers_ds<- function(de.dir, select.cl=NULL,pair.num=1, add.num=NULL, 
         de.checked.num = check_pairs_ds(de.dir, add.num, genes=default.markers, cl.bin=cl.bin,...)
       }
       else{
-        de.checked.num = check_pairs_lfc(to.add=add.num %>% select(P1,P2), genes=default.markers,...)
+        de.checked.num = check_pairs_lfc(to.add=add.num %>% select(P1,P2), genes=default.markers,cl.means=cl.means,...)
       }
       add.num = add.num %>% left_join(de.checked.num,by=c("P1","P2"))
       add.num = add.num %>% mutate(checked=ifelse(is.na(checked),0,checked)) %>% mutate(num = num-checked)
@@ -394,7 +397,7 @@ select_N_markers_ds<- function(de.dir, select.cl=NULL,pair.num=1, add.num=NULL, 
 #' @export
 #'
 #' @examples
-select_pos_markers_ds<- function(de.dir, cl, select.cl, genes, cl.bin, ds=NULL,n.markers=1,  mc.cores=1,out.dir="cl.markers",...)
+select_pos_markers_ds<- function(de.dir, cl, select.cl, genes, cl.bin, ds=NULL,n.markers=1, out.dir="cl.markers",  mc.cores=1, overwrite=TRUE, ...)
   {
     library(parallel)    
     require(doMC)
@@ -404,17 +407,24 @@ select_pos_markers_ds<- function(de.dir, cl, select.cl, genes, cl.bin, ds=NULL,n
       ds = open_dataset(de.dir)
     }
     if (!dir.exists(out.dir)) {
-        dir.create(out.dir)
+      dir.create(out.dir)
     }
-    
     ###for each cluster, find markers that discriminate it from other types
     cl.markers <- foreach(x=select.cl, .combine="c") %dopar% {
+      fn = file.path(out.dir,gsub("/", "", paste0(x, ".markers.rda")))
+      if(file.exists(fn) & !overwrite){
+        load(fn)
+        tmp=list(markers)
+        names(tmp)=x
+        tmp
+        return(tmp)
+      }
       print(x)
       g1=x
       g2 = setdiff(cl, x)
       #select.de = ds %>% filter(bin.x==cl.bin.x & P1==g1 & P2 %in% g2) %>% collect()
       markers <- select_markers_pair_group_ds(g1,g2, de.dir=de.dir,  ds=ds, genes=genes, cl.bin=cl.bin, n.markers=n.markers,select.sign="up",...)
-      save(markers, file=file.path(out.dir, paste0(x, ".markers.rda")))
+      save(markers, file=fn)
       tmp=list(markers)
       names(tmp)=x
       tmp
@@ -484,9 +494,11 @@ select_markers_groups_top_ds <- function(ds, cl.group, select.groups=names(cl.gr
   }
 
 #cl.group is a data.frame with column "cl", and "group"
-select_markers_groups <- function(de.dir, cl.group, genes, cl.bin, select.groups= unique(cl.group$group), n.markers=20,mc.cores=1,...)
+select_markers_groups <- function(de.dir, cl.group, genes, cl.bin, select.groups= unique(cl.group$group), lfc.th=2,cl.means=NULL, n.markers=20,ds=NULL, mc.cores=1,...)
   {
-    ds = open_dataset(de.dir)
+    if(is.null(ds)){
+      ds = open_dataset(de.dir)
+    }
     cl.group$cl = as.character(cl.group$cl)
     group_pair=create_pairs(unique(cl.group$group))
     library(parallel)
@@ -509,13 +521,20 @@ select_markers_groups <- function(de.dir, cl.group, genes, cl.bin, select.groups
     pairs = pairs %>% left_join(cl.group, by=c("P1"="cl"))
     pairs = pairs %>% left_join(cl.group, by=c("P2"="cl"))
     pairs = pairs %>% filter(group.x!=group.y) 
-   
-    de.checked.num = check_pairs_ds(de.dir, pairs[,c("P1","P2")], genes=group.markers,cl.bin=cl.bin, mc.cores=mc.cores)    
+    
+    if(is.null(cl.means)){
+      de.checked.num = check_pairs_ds(de.dir, pairs[,c("P1","P2")], genes=group.markers,cl.bin=cl.bin, ds=ds, mc.cores=mc.cores)          
+    }
+    else{
+      de.checked.num = check_pairs_lfc(to.add=pairs[,c("P1","P2")], genes=group.markers,cl.means=cl.means, lfc.th=lfc.th,mc.cores=mc.cores)
+      }
+
+
     add.num = pairs %>% left_join(de.checked.num) %>% mutate(num=n.markers - checked)
     
     select.markers=group.markers
     genes = setdiff(genes, select.markers)
-    more.markers <- select_markers_pair_direction_ds(de.dir, add.num=add.num,  genes=genes, cl.bin=cl.bin, mc.cores=mc.cores,...)    
+    more.markers <- select_markers_pair_direction_ds(de.dir, add.num=add.num,  genes=genes, cl.bin=cl.bin, ds=ds, mc.cores=mc.cores,...)    
     select.markers = c(select.markers, more.markers$markers)
   }
 

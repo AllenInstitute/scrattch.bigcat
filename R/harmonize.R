@@ -815,8 +815,12 @@ comb_de_result_big <- function(ds, cl.means.list, cl.bin, sets=names(cl.means.li
     foreach(bin2 = all.bins,.combine="c")%dopar% {
       if(!overwrite & dir.exists(file.path(out.dir, paste0("bin.x=",bin1), paste0("bin.y=",bin2)))){
         return(NULL)
-      }        
-      de.df = droplevels(ds %>% filter(bin.x==bin1 & bin.y==bin2) %>% collect())     
+      }
+      cat(bin1, bin2,"\n")
+      de.df = droplevels(ds %>% filter(bin.x==bin1 & bin.y==bin2) %>% collect())
+      if(nrow(de.df)==0){
+        return(NULL)
+      }
       de.genes = de.df %>% group_by(gene,P1,P2) %>% summarize(num=n(),logPval=mean(logPval))
       pairs = de.df %>% select(pair, P1, P2, bin.x, bin.y) %>% distinct()
       lfc = list()
