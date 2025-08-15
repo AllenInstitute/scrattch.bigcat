@@ -303,7 +303,7 @@ get_cl_stats_list <- function(comb.dat, merge.sets, cl, max.cl.size=300,mc.cores
 ##' @param compare.k 
 ##' @return 
 ##' @author Zizhen Yao
-merge_cl_multiple <- function(comb.dat, merge.sets, cl, anchor.genes=NULL, joint.rd.dat=NULL, verbose=TRUE, lfc.conservation.th=0.7, merge.type="undirectional", de.method="fast_limma",max.cl.size=300, compare.k=4, mc.cores=5, pairBatch=100, cl.stats.list=NULL)
+merge_cl_multiple <- function(comb.dat, merge.sets, cl, anchor.genes=NULL, genes.allowed=NULL, joint.rd.dat=NULL, verbose=TRUE, lfc.conservation.th=0.7, merge.type="undirectional", de.method="fast_limma",max.cl.size=300, compare.k=4, mc.cores=5, pairBatch=100, cl.stats.list=NULL)
 {
   #print("merge_cl_multiple")
   cl = setNames(as.character(cl),names(cl))
@@ -415,6 +415,14 @@ merge_cl_multiple <- function(comb.dat, merge.sets, cl, anchor.genes=NULL, joint
   cl.means.list      = cl.stats.list$cl.means.list
   cl.present.list    = cl.stats.list$cl.present.list
   cl.sqr.means.list  = cl.stats.list$cl.sqr.means.list
+  if(!is.null(genes.allowed)){
+    for(set in merge.sets){
+      select.genes = intersect(row.names(cl.means.list[[set]]), genes.allowed)
+      cl.means.list[[set]] = cl.means.list[[set]][select.genes, ]
+      cl.present.list[[set]] = cl.present.list[[set]][select.genes, ]
+      cl.sqr.means.list[[set]] = cl.present.list[[set]][select.genes, ]
+    }
+  }
 
   if(length(cl.small)>0){
     ######if there is a joint space, use it to compute cluster centroid for mapping
@@ -444,7 +452,7 @@ merge_cl_multiple <- function(comb.dat, merge.sets, cl, anchor.genes=NULL, joint
           next
         }
         cl.dat = cl.dat[intersect(anchor.genes,row.names(cl.dat)),]
-        if(comb.dat$dat.list[[set]]$type=="mem"){
+   OA     if(comb.dat$dat.list[[set]]$type=="mem"){
           dat = comb.dat$dat.list[[set]][row.names(cl.dat),query.cells]
           map.df = map_cells_knn(dat, cl.dat, mc.cores=mc.cores)
         }
