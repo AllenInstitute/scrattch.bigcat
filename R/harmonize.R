@@ -509,7 +509,7 @@ compute_knn <- function(comb.dat, select.genes, ref.list, ref.dat.list=NULL, sel
 ##' @param ... 
 ##' @return 
 ##' @author Zizhen Yao
-knn_joint <- function(comb.dat, joint.rd.dat=NULL, ref.sets=names(comb.dat$dat.list), select.sets= names(comb.dat$dat.list), merge.sets=ref.sets, select.cells=comb.dat$all.cells, select.genes=NULL,cross.knn.method="Annoy.Cosine", self.knn.method = "Annoy.Euclidean", method="leiden", k=15,  sample.size = 50000, jaccard.sampleSize = 200000, cl.sample.size = 100, block.size = 10000, verbose=TRUE,mc.cores=1,rm.eigen=NULL, rm.th=0.7,max.dim=20,rm.genes=NULL,...)
+knn_joint <- function(comb.dat, joint.rd.dat=NULL, ref.sets=names(comb.dat$dat.list), select.sets= names(comb.dat$dat.list), merge.sets=ref.sets, select.cells=comb.dat$all.cells, select.genes=NULL,genes.allowed=NULL, cross.knn.method="Annoy.Cosine", self.knn.method = "Annoy.Euclidean", method="leiden", k=15,  sample.size = 50000, jaccard.sampleSize = 200000, cl.sample.size = 100, block.size = 10000, verbose=TRUE,mc.cores=1,rm.eigen=NULL, rm.th=0.7,max.dim=20,rm.genes=NULL,...)
 {
   select.cells = comb.dat$all.cells[comb.dat$all.cells %in% select.cells]
   cat("Number of select cells", length(select.cells), "\n")
@@ -637,7 +637,7 @@ knn_joint <- function(comb.dat, joint.rd.dat=NULL, ref.sets=names(comb.dat$dat.l
       cl[row.names(tmp.pred.df)] = tmp.pred.df$pred.cl
     }
   }
-  cl= merge_cl_multiple(comb.dat=comb.dat,merge.sets=merge.sets, cl=cl, anchor.genes=select.genes,mc.cores=mc.cores, joint.rd.dat=joint.rd.dat)  
+  cl= merge_cl_multiple(comb.dat=comb.dat,merge.sets=merge.sets, cl=cl, anchor.genes=select.genes,genes.allowed=genes.allowed,mc.cores=mc.cores, joint.rd.dat=joint.rd.dat)  
   if(length(unique(cl))<=1){
     return(NULL)
   }
