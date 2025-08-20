@@ -429,12 +429,12 @@ convert_h5ad_big.dat_parquet <- function(fn, adata=NULL, dir=getwd(),parquet.dir
 ##' .. content for \description{} (no empty lines) ..
 ##'
 ##' .. content for \details{} ..
-##' @title 
+##' @title append_big.dat_parquet
 ##' @param mat 
 ##' @param big.dat 
 ##' @param col.bin.size 
 ##' @param row.bin.size 
-##' @return 
+##' @return value
 ##' @author Zizhen Yao
 append_big.dat_parquet <- function(mat, big.dat, col.bin.size=50000, row.bin.size=500, mc.cores=10)
   {

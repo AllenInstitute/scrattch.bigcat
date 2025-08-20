@@ -9,10 +9,9 @@
 #' @param max.pca 
 #' @param th 
 #'
-#' @return
+#' @return value
 #' @export
-#'
-#' @examples
+
 rd_PCA <- function(norm.dat, select.genes=row.names(norm.dat), select.cells=colnames(norm.dat),sampled.cells=select.cells, max.pca=10, th=2, verbose=FALSE, method="zscore", mc.cores=1)
 {
   library(Matrix)

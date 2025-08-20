@@ -5,10 +5,9 @@
 #' @param scale 
 #' @param exclude.th 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 get_knn_weight <- function(knn.dist, scale=0.2, exclude.th = 0.0001)
   {
     w = exp(-knn.dist*scale)
@@ -21,11 +20,11 @@ get_knn_weight <- function(knn.dist, scale=0.2, exclude.th = 0.0001)
 ##' .. content for \description{} (no empty lines) ..
 ##'
 ##' .. content for \details{} ..
-##' @title 
+##' @title predict_knn
 ##' @param knn.idx 
 ##' @param reference 
 ##' @param cl 
-##' @return 
+##' @return value.  
 ##' @author Zizhen Yao
 predict_knn <- function(knn.idx, reference, cl, mc.cores=1)
   {
@@ -67,10 +66,9 @@ predict_knn <- function(knn.idx, reference, cl, mc.cores=1)
 #' @param w 
 #' @param ... 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 impute_knn <- function(knn.idx, reference, dat, knn.dist=NULL, w=NULL, transpose_input=FALSE, transpose_output= FALSE)
   {
     

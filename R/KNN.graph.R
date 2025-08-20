@@ -6,10 +6,9 @@
 #' @param knn.outlier.th 
 #' @param outlier.frac.th 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 get_knn_graph <- function(rd.dat, cl, ref.cells=row.names(rd.dat),method="Annoy.Cosine", k=15, knn.outlier.th=2, outlier.frac.th=0.5,clean.cells=row.names(rd.dat), knn.result=NULL,mc.cores=10)
 {
   if(is.null(knn.result)){
@@ -77,9 +76,6 @@ get_knn_graph <- function(rd.dat, cl, ref.cells=row.names(rd.dat),method="Annoy.
 #' @param fg.alpha alpha to use for edges that are most dark. Default = 0.4 
 #' @param bg.alpha alpha to use for edges that are more faint. Default = 0.1
 #' @param coord_fixed Cartesian coordinates with fixed "aspect ratio". See ggplot::coord_fixed. Default is TRUE
-#'  
-#' 
-#' @example_data:
 #'  
 #' knn.cl.df <- read.csv("data/Constellation_example/knn.cl.df.csv")
 #' cl.center.df <- read.csv("data/Constellation_example/cl.center.df.csv", row.names=1)
@@ -747,10 +743,9 @@ plot_constellation <- function (knn.cl.df,
 #' @param line.segments 
 #' @param curved 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 edgeMaker <- function(whichRow, len=100, line.segments, curved=FALSE){
   
   fromC <- unlist(line.segments[whichRow,c(3,4)])# Origin
@@ -788,10 +783,9 @@ edgeMaker <- function(whichRow, len=100, line.segments, curved=FALSE){
 #' @param y 
 #' @param len 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 perpStart <- function(x, y, len) {
     perp(x, y, len, angle(x, y), 1)
         }
@@ -801,10 +795,9 @@ perpStart <- function(x, y, len) {
 #' @param x 
 #' @param y 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 avgangle <- function(x, y) {
     a1 <- angle(x[1:2], y[1:2])
     a2 <- angle(x[2:3], y[2:3])
@@ -819,10 +812,9 @@ avgangle <- function(x, y) {
 #' @param a 
 #' @param mid 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 perp <- function(x, y, len, a, mid) {
     dx <- len*cos(a + pi/2)
     dy <- len*sin(a + pi/2)
@@ -837,10 +829,9 @@ perp <- function(x, y, len, a, mid) {
 #' @param y 
 #' @param len 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 perpMid <- function(x, y, len) {
     ## Now determine angle at midpoint
     perp(x, y, len, avgangle(x, y), 2)
@@ -852,10 +843,9 @@ perpMid <- function(x, y, len) {
 #' @param y 
 #' @param len 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 perpEnd <- function(x, y, len) {
     perp(x, y, len, angle(x, y), 2)
 }
@@ -867,10 +857,9 @@ perpEnd <- function(x, y, len) {
 #' @param x vector
 #' @param y vector
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 angle <- function(x, y) {
     atan2(y[2] - y[1], x[2] - x[1])
         }

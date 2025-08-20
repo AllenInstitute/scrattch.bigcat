@@ -9,10 +9,9 @@
 #' @param signif_col_fun 
 #' @param ... 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 pvclust_show_signif_gradient <- function (dend, pvclust_obj, signif_type = c("bp", "au"), signif_col_fun = colorRampPalette(c("black", 
     "darkred", "red")), ...) 
 {
@@ -42,10 +41,9 @@ pvclust_show_signif_gradient <- function (dend, pvclust_obj, signif_type = c("bp
 #' @param nboot 
 #' @param ncores 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 build_dend <- function(cl.dat, cl.cor=NULL, l.rank=NULL, l.color=NULL, nboot=100, ncores=1)
   {
     require(dendextend)
@@ -90,10 +88,9 @@ build_dend <- function(cl.dat, cl.cor=NULL, l.rank=NULL, l.color=NULL, nboot=100
 #' @param dend 
 #' @param conf.th 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 unbranch_by_conf  <- function(dend, conf.th)
   {
     if(length(dend)>1){
@@ -146,10 +143,9 @@ unbranch_by_conf  <- function(dend, conf.th)
 #' @param rm.labels 
 #' @param top.level 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 prune_dend <- function(dend, rm.labels, top.level=TRUE)
   {
     if(length(dend)>1){
@@ -192,10 +188,9 @@ prune_dend <- function(dend, rm.labels, top.level=TRUE)
 #' @param l.rank 
 #' @param top.level 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 reorder_dend <- function(dend, l.rank, top.level=TRUE)
   {
     tmp.dend = dend
@@ -227,10 +222,9 @@ reorder_dend <- function(dend, l.rank, top.level=TRUE)
 #' @param dend 
 #' @param length.th 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 unbranch_by_length <- function(dend, length.th)
   {
     if(length(dend)>1){
@@ -276,10 +270,9 @@ unbranch_by_length <- function(dend, length.th)
 #' @param dend 
 #' @param h 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 cutree_dend <- function(dend, h)
   {
     if(length(dend)>1){
@@ -325,10 +318,9 @@ cutree_dend <- function(dend, h)
 #' @param dend 
 #' @param n 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 label_dend <- function(dend,n=1)
   {  
     if(is.null(attr(dend,"label"))){
@@ -362,10 +354,9 @@ reset_dend_label <- function(dend)
 #'
 #' @param dend 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 get_dend_parent <- function(dend)
   {
     if(length(dend)>1){
@@ -384,10 +375,9 @@ get_dend_parent <- function(dend)
 #' @param dend 
 #' @param n 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 get_dend_markers <- function(dend, n = 20)
   {
     if(length(dend)>1){
@@ -408,10 +398,9 @@ get_dend_markers <- function(dend, n = 20)
 #' @param dend 
 #' @param n 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 get_dend_markers_direction <- function(dend, n = 20)
   {
     if(length(dend)>1){
@@ -435,10 +424,9 @@ get_dend_markers_direction <- function(dend, n = 20)
 #' @param node_size 
 #' @param r 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 plot_dend <- function(dend, dendro_data=NULL,node_size=1,r=c(-0.1,1),missing.edge.color="darkred")
   {
     require(dendextend)
@@ -471,10 +459,9 @@ plot_dend <- function(dend, dendro_data=NULL,node_size=1,r=c(-0.1,1),missing.edg
 #'
 #' @param dend 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 dend_list <- function(dend)
   {
     l = list()
@@ -494,10 +481,9 @@ dend_list <- function(dend)
 #' @param l2 
 #' @param l 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 dend_lca <- function(dend, l1, l2, l=rep(attr(dend,"label"),length(l1)))
   {
     node.height=setNames(get_nodes_attr(dend, "height"),get_nodes_attr(dend, "label"))
@@ -526,10 +512,9 @@ dend_lca <- function(dend, l1, l2, l=rep(attr(dend,"label"),length(l1)))
 #' @param dend.list 
 #' @param cl.group 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 dend_match <- function(dend.list, cl.group){
   dend_group=sapply(dend.list, function(d){
     table(cl.group[labels(d)])
