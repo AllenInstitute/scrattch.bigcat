@@ -524,11 +524,8 @@ compare_annotate <- function(cl,
 #' @return a character vector of hex colors with duplicated colors replaced
 #' 
 #' @export
-#'
 #' @examples
-#' 
 #' original_colors <- c("#00FF00","#00FF00","#FF0000","#00FF00")
-#' 
 #' new_colors <- adjust_color(original_colors)
 #' 
 adjust_color <- function(colorset) {

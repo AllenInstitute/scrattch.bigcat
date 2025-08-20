@@ -18,10 +18,9 @@
 #' @param width 
 #' @param key 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 plot_cl_heatmap <- function(norm.dat, 
                             cl, 
                             markers, 
@@ -121,10 +120,9 @@ plot_cl_heatmap <- function(norm.dat,
 #' @param min.sep 
 #' @param ... 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 display_cl_one_vs_others <- function(select.cl, 
                                      cl, 
                                      norm.dat, 
@@ -230,10 +228,9 @@ display_cl<- function(cl, norm.dat,prefix=NULL, plot=!is.null(prefix), col=NULL,
 #' @param markers 
 #' @param ... 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 display_cl_markers_co.ratio <- function(select.cl, cl, norm.dat, co.ratio, prefix,  all.col, max.cl.size=100, markers=NULL,...)
 {
   cells = names(cl)[cl %in% select.cl]
@@ -267,10 +264,9 @@ display_cl_markers_co.ratio <- function(select.cl, cl, norm.dat, co.ratio, prefi
 #' @param col 
 #' @param drop 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 plot_cl_meta_barplot <- function(cluster, meta, col=NULL, drop=FALSE)
 {
   library(ggplot2)
@@ -294,10 +290,9 @@ plot_cl_meta_barplot <- function(cluster, meta, col=NULL, drop=FALSE)
 #'
 #' @param anno 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 plot_cl_cells <- function(anno)
   {
     max.mag=ceiling(max(log10(table(anno$cluster_id))))
@@ -494,7 +489,7 @@ varibow <-function (n_colors)
 #' @param ... additional arguments passed on to \code{\link{image}}
 #' 
 #' 
-#' @return a base R plot
+#' @return value.  a base R plot
 #' @export
 #' 
 heatmap.3 <- function (x, 
@@ -1192,10 +1187,9 @@ heatmap.3 <- function (x,
 #' @param lwid 
 #' @param ... 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 heatmap.4 <- function (x, Rowv = TRUE, Colv = if (symm) "Rowv" else TRUE, 
                        distfun = dist, hclustfun = hclust, dendrogram = c("both", 
                         "row", "column", "none"), symm = FALSE, scale = c("none", 
@@ -1632,10 +1626,9 @@ heatmap.4 <- function (x, Rowv = TRUE, Colv = if (symm) "Rowv" else TRUE,
 #' @param width 
 #' @param legend.dat 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 plot_cl_heatmap4 <- function(norm.dat, cl, markers, prefix=NULL,hc=NULL, gene.hc=NULL,centered=FALSE,labels=names(cl),sorted=FALSE,by.cl=TRUE,ColSideColors=NULL,maxValue=5,min.sep=4,main="", height=13, width=9, legend.dat=NULL)
 {
   select.cells=names(cl)
@@ -1754,10 +1747,9 @@ plot_cl_heatmap4 <- function(norm.dat, cl, markers, prefix=NULL,hc=NULL, gene.hc
 #' @param legend.dat 
 #' @param ... 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 display_cl4 <- function(cl, norm.dat,prefix=NULL, plot=!is.null(prefix), col=NULL, max.cl.size=NULL,markers=NULL,de.genes=NULL, main="",height=13, width=9, min.sep=10, legend.dat=NULL, ...)
 {
   select.cells=names(cl)        

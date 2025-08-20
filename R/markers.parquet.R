@@ -184,7 +184,7 @@ select_markers_ds <- function(ds, cl.bin, select.cl=NULL, top.n=20,mc.cores=10)
 ##' .. content for \description{} (no empty lines) ..
 ##'
 ##' .. content for \details{} ..
-##' @title 
+##' @title select_markers_pair_direction_ds
 ##' @param de.dir 
 ##' @param add.num 
 ##' @param genes 
@@ -194,7 +194,7 @@ select_markers_ds <- function(ds, cl.bin, select.cl=NULL, top.n=20,mc.cores=10)
 ##' @param max.genes 
 ##' @param cl.means 
 ##' @param lfc.th 
-##' @return 
+##' @return value.  
 ##' @author Zizhen Yao
 select_markers_pair_direction_ds <- function(de.dir, add.num, genes, cl.bin, de=NULL, mc.cores=20,max.genes=1000,cl.means=NULL,lfc.th=2, ds=NULL)
   {
@@ -267,23 +267,21 @@ select_markers_pair_direction_ds <- function(de.dir, add.num, genes, cl.bin, de=
     return(list(select.genes=select.genes, de=de))
   }
 
-#' Title
+#' Title: select_markers_pair_group_top_ds
 #'
-#' @param cl 
-#' @param g1 
-#' @param g2 
-#' @param ds
-#' @param top.n 
-#' @param max.num 
-#' @param n.markers 
-#' @param up.gene.score 
-#' @param down.gene.score 
+#' @param cl cl
+#' @param g1 g1
+#' @param g2 g2
+#' @param ds ds
+#' @param top.n top.n
+#' @param max.num max.num
+#' @param n.markers n.markers
+#' @param up.gene.score up.gene.score
+#' @param down.gene.score down.gene.score 
 #'
-#' @return
+#' @return value. Note # Always directory
 #' @export
-#'
-#' @examples
-# Always directory
+
 select_markers_pair_group_top_ds <- function(g1,g2,ds, genes, cl.bin, select.sign="up", n.markers=20,mc.cores=1, ...)
 {
   require(matrixStats)
@@ -393,10 +391,9 @@ select_N_markers_ds<- function(de.dir, select.cl=NULL,pair.num=1, add.num=NULL, 
 #' @param up.gene.score 
 #' @param down.gene.score 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 select_pos_markers_ds<- function(de.dir, cl, select.cl, genes, cl.bin, ds=NULL,n.markers=1, out.dir="cl.markers",  mc.cores=1, overwrite=TRUE, ...)
   {
     library(parallel)    
@@ -466,10 +463,9 @@ select_top_pos_markers_ds<- function(ds, cl, select.cl, genes, cl.bin, n.markers
 #' @param de.genes 
 #' @param cl.group Assignment of clusters to groups cluster as names, and group id as values.
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 
 
 select_markers_groups_top_ds <- function(ds, cl.group, select.groups=names(cl.group), n.markers=3,mc.cores=1,...)

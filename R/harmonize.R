@@ -13,10 +13,9 @@ blue.red <-colorRampPalette(c("blue", "white", "red"))
 #' @param cl.sample.size 
 #' @param sample.size 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 sample_sets_list <- function(cells.list, cl.list, cl.sample.size=100, sample.size=5000)
   {
     for(x in names(cells.list)){
@@ -77,10 +76,9 @@ knn_combine <- function(result.1, result.2)
 #' @param batch.size 
 #' @param mc.cores 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 get_knn_batch <- function(dat, ref.dat, k, method="cor", dim=NULL, batch.size, mc.cores=1,return.distance=FALSE,transposed=TRUE, index=NULL,clear.index=FALSE, ntrees=50) 
   {
     library(BiocNeighbors)
@@ -147,10 +145,9 @@ knn_cor <- function(ref.dat, query.dat, k = 15)
 #' @param method 
 #' @param dim 
 #'
-#' @return
+#' @return value. 
 #' @export
 #'
-                                        #' @examples
 
 get_knn <- function(dat, ref.dat, k, method ="cor", dim=NULL,index=NULL, build.index=FALSE, transposed=TRUE, return.distance=FALSE, ntrees=100)
   {
@@ -489,7 +486,7 @@ compute_knn <- function(comb.dat, select.genes, ref.list, ref.dat.list=NULL, sel
 ##' .. content for \description{} (no empty lines) ..
 ##'
 ##' .. content for \details{} ..
-##' @title 
+##' @title knn_joint
 ##' @param comb.dat 
 ##' @param ref.sets 
 ##' @param select.sets 
@@ -507,7 +504,7 @@ compute_knn <- function(comb.dat, select.genes, ref.list, ref.dat.list=NULL, sel
 ##' @param rm.eigen 
 ##' @param rm.th 
 ##' @param ... 
-##' @return 
+##' @return value.  
 ##' @author Zizhen Yao
 knn_joint <- function(comb.dat, joint.rd.dat=NULL, ref.sets=names(comb.dat$dat.list), select.sets= names(comb.dat$dat.list), merge.sets=ref.sets, select.cells=comb.dat$all.cells, select.genes=NULL,genes.allowed=NULL, cross.knn.method="Annoy.Cosine", self.knn.method = "Annoy.Euclidean", method="leiden", k=15,  sample.size = 50000, jaccard.sampleSize = 200000, cl.sample.size = 100, block.size = 10000, verbose=TRUE,mc.cores=1,rm.eigen=NULL, rm.th=0.7,max.dim=20,rm.genes=NULL,...)
 {
@@ -672,13 +669,13 @@ harmonize <- function(comb.dat, prefix, overwrite=TRUE, dir="./",...)
 ##' .. content for \description{} (no empty lines) ..
 ##'
 ##' .. content for \details{} ..
-##' @title 
+##' @title i_harmonize
 ##' @param comb.dat 
 ##' @param select.cells 
 ##' @param prefix 
 ##' @param result 
 ##' @param ... 
-##' @return 
+##' @return value.  
 ##' @author Zizhen Yao
 i_harmonize<- function(comb.dat, select.cells=comb.dat$all.cells, ref.sets=names(comb.dat$dat.list), select.sets=names(comb.dat$dat.list), prefix="", joint.rd.dat=NULL, result=NULL, overwrite=TRUE, sample.size = 50000, dir="./",rm.genes=NULL,split.size = 100, ...)
   {
@@ -984,10 +981,9 @@ gene_gene_cor_conservation <- function(dat.list, select.genes, select.cells,pair
 #' @param sim 
 #' @param k 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 sim_knn <- function(sim, k=15)
 {
   require(matrixStats)
@@ -1004,11 +1000,11 @@ sim_knn <- function(sim, k=15)
 ##' .. content for \description{} (no empty lines) ..
 ##'
 ##' .. content for \details{} ..
-##' @title 
+##' @title jaccard_big
 ##' @param knn.index 
 ##' @param bin_size 
 ##' @param prune 
-##' @return 
+##' @return value.  
 ##' @author Zizhen Yao
 jaccard_big <-  function(knn.index, bin_size =50000, prune=0)
 {
@@ -1059,21 +1055,13 @@ jaccard_big <-  function(knn.index, bin_size =50000, prune=0)
 
 #' KNN Jaccard Louvain
 #'
+#' @title knn_jaccard_clust
 #' @param knn.index 
-#'
-#' @return
+#' @param method 
+#' @param prune 
 #' @export
-#'
-#' @examples
-##' .. content for \description{} (no empty lines) ..
-##'
-##' .. content for \details{} ..
-##' @title 
-##' @param knn.index 
-##' @param method 
-##' @param prune 
-##' @return 
-##' @author Zizhen Yao
+#' @return value.  
+#' @author Zizhen Yao
 knn_jaccard_clust <- function(knn.index, method=c("leiden","louvain"),prune=0.05,return.graph=FALSE,...)
   {
     require(igraph)
@@ -1111,10 +1099,9 @@ knn_jaccard_clust <- function(knn.index, method=c("leiden","louvain"),prune=0.05
 #'
 #' @param all.results 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 combine_cl <- function(all.results)
   {
     cl = all.results[[1]]$cl
@@ -1144,10 +1131,9 @@ combine_cl <- function(all.results)
 #' @param .combine 
 #' @param ... 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 batch_process <- function(x, batch.size, FUN, mc.cores=1, .combine="c",bins=NULL,...)
   {
     require(foreach)
@@ -1170,10 +1156,9 @@ batch_process <- function(x, batch.size, FUN, mc.cores=1, .combine="c",bins=NULL
 #'
 #' @param cl.means.list 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 get_gene_cl_correlation <- function(cl.means.list)
   {
     sets=names(cl.means.list)
@@ -1200,10 +1185,9 @@ get_gene_cl_correlation <- function(cl.means.list)
 #' @param do.droplevels 
 #' @param ... 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 plot_confusion <- function(consensus.cl, prefix, comb.dat,consensus.cl.df = NULL, sets=names(comb.dat$cl.list), do.droplevels = FALSE,cex.x=6, cex.y=6,...)
 {
   g.list=list()

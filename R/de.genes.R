@@ -94,7 +94,7 @@
 #' \code{min.genes} is the minimum number of differentially expressed genes (passing the \code{padj.th} and \code{lfc.th} thresholds, above) 
 #' required to consider two clusters separate.
 #' 
-#' @return returns a list of parameters for reuse
+#' @return value.  returns a list of parameters for reuse
 #' @export
 #' 
 #' @examples 
@@ -202,7 +202,7 @@ de_param <- function(low.th = 1,
 #' @param y an integer vector with the number of cells in group \emph{y} with detection of each gene.
 #' @param y.total an integer value with the total number of cells in group \emph{y}.
 #' 
-#' @return a data.frame with the following result for each gene:
+#' @return value.  a data.frame with the following result for each gene:
 #' \itemize{
 #' \item{stats: The value of the chi-squared test statistic}
 #' \item{pval: The p-value as reported by pchisq}
@@ -252,7 +252,7 @@ vec_chisq_test <- function(x,
 #' @param fit a limma fit object
 #' @param genes the genes to use for pairwise comparisons
 #' 
-#' @return a data.frame with DE statistics:
+#' @return value.  a data.frame with DE statistics:
 #' \itemize{
 #' \item{padj} P-values adjusted using the Holm (1979) method (\code{p.adjust()} default).
 #' \item{pval} P-values reported by the \code{limma::eBayes()} function.
@@ -317,7 +317,7 @@ de_pair_limma <- function(pair,
 #' @param cl.size a named numeric vector of cluster sizes
 #' @param genes the genes to use for pairwise comparisons
 #'
-#' @return a data.frame with DE statistics:
+#' @return value.  a data.frame with DE statistics:
 #' \itemize{
 #' \item{padj} P-values adjusted using the Holm (1979) method (\code{p.adjust()} default).
 #' \item{pval} P-values reported by the \code{vec_chisq_test()} function.
@@ -366,7 +366,7 @@ de_pair_chisq <- function(pair,
 #' @param cl.size a named numeric vector of cluster sizes
 #' @param genes the genes to use for pairwise comparisons
 #'
-#' @return a data.frame with DE statistics:
+#' @return value.  a data.frame with DE statistics:
 #' \itemize{
 #' \item{padj} P-values adjusted using the Holm (1979) method (\code{p.adjust()} default).
 #' \item{pval} P-values reported by the \code{vec_chisq_test()} function.
@@ -544,10 +544,8 @@ de_pair_fast_limma <- function(pair,
 #' @param direction 
 #' @param include.self 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
 create_pairs <- function(cn1, cn2=cn1,direction="nondirectional", include.self = FALSE)
   {
     cn1=as.character(cn1)
@@ -592,7 +590,7 @@ get_de_truncate_score_sum <- function(gene.score, th=20)
 #' @param cl.size1 Optional: The number of samples in the first/high cluster
 #' @param cl.size2 Optional: The number of samples in the second/low cluster
 #' 
-#' @results A list of filtered differential expression results containing:
+#' @return A list of filtered differential expression results containing:
 #' \itemize{
 #' \item{score} The deScore value, equal to the sum of the -log10(p-values) of differentially expressed genes, with a cap of 20 per gene.
 #' \item{up.score} The deScore value for up-regulated genes.
@@ -705,7 +703,7 @@ de_stats_pair <- function(df,
 #' @param de.df Optional. Pre-computed results from \code{de_all_pairs()} or \code{de_selected_pairs}. Default = NULL.
 #' @param ... Additional parameters passed to \code{de_selected_pairs()}
 #'
-#' @return a character vector of all differentially expressed genes. 
+#' @return value.  a character vector of all differentially expressed genes. 
 #' @export
 #'
 de_all_pairs <- function(norm.dat, 
@@ -752,7 +750,7 @@ de_all_pairs <- function(norm.dat,
 #' @details When directed = TRUE and field = "num", the minimum value from up or down-regulated genes is returned for each pair. When field = "score", the 
 #' minimum deScore is returned.
 #'
-#' @return a matrix with clusters as rows and columns, and pairwise DE results as values.
+#' @return value.  a matrix with clusters as rows and columns, and pairwise DE results as values.
 #' @export
 #'
 get_de_matrix <- function(de.genes, 
@@ -801,10 +799,8 @@ get_de_matrix <- function(de.genes,
 #' @param file 
 #' @param ... 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
 plot_de_num <- function(de.genes, 
                         dend, 
                         cl.label = NULL, 
@@ -850,10 +846,8 @@ plot_de_num <- function(de.genes,
 #' @param select.pair 
 #' @param cl.label 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
 plot_de_lfc_num <- function(de.genes, 
                             top.n = 100, 
                             select.pair = NULL, 
@@ -967,10 +961,8 @@ plot_de_lfc_num <- function(de.genes,
 #' @param cl.label 
 #' @param ... 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
 plot_pair_matrix <- function(pair.num, file, directed=FALSE, dend=NULL, col=jet.colors(100), cl.label=NULL,...)
   {
     pair.matrix <- convert_pair_matrix(pair.num, directed = directed)
