@@ -420,7 +420,7 @@ merge_cl_multiple <- function(comb.dat, merge.sets, cl, anchor.genes=NULL, genes
       select.genes = intersect(row.names(cl.means.list[[set]]), genes.allowed)
       cl.means.list[[set]] = cl.means.list[[set]][select.genes, ]
       cl.present.list[[set]] = cl.present.list[[set]][select.genes, ]
-      cl.sqr.means.list[[set]] = cl.present.list[[set]][select.genes, ]
+      cl.sqr.means.list[[set]] = cl.sqr.means.list[[set]][select.genes, ]
     }
   }
 
@@ -452,7 +452,7 @@ merge_cl_multiple <- function(comb.dat, merge.sets, cl, anchor.genes=NULL, genes
           next
         }
         cl.dat = cl.dat[intersect(anchor.genes,row.names(cl.dat)),]
-   OA     if(comb.dat$dat.list[[set]]$type=="mem"){
+        if(comb.dat$dat.list[[set]]$type=="mem"){
           dat = comb.dat$dat.list[[set]][row.names(cl.dat),query.cells]
           map.df = map_cells_knn(dat, cl.dat, mc.cores=mc.cores)
         }
@@ -480,6 +480,15 @@ merge_cl_multiple <- function(comb.dat, merge.sets, cl, anchor.genes=NULL, genes
     new.cl.means.list   = new.cl.stats.list$cl.means.list
     new.cl.present.list = new.cl.stats.list$cl.present.list
     new.cl.sqr.means.list = new.cl.stats.list$cl.sqr.means.list
+    if(!is.null(genes.allowed)){
+      for(set in merge.sets){
+        select.genes = intersect(row.names(new.cl.means.list[[set]]), genes.allowed)
+        new.cl.means.list[[set]] = new.cl.means.list[[set]][select.genes, ]
+        new.cl.present.list[[set]] = new.cl.present.list[[set]][select.genes, ]
+        new.cl.sqr.means.list[[set]] = new.cl.sqr.means.list[[set]][select.genes, ]
+      }
+    }
+    
     new.cl.platform.counts = table(comb.dat$meta.df[names(new.cl), "platform"],new.cl)[merge.sets,,drop=F]    
     ###update cl.stats
     for(set in names(new.cl.means.list)){
