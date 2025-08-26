@@ -311,7 +311,7 @@ compile_cl_mat <- function(cl.list, select.cells)
 #' @param niter maxmimal mumber of refinement iterations. 
 #' @param tol.th If improvement is smaller than this threshold, terminate refinement step.  
 #' @param verbose If true, print out step-by-step improvement. 
-#' @return 
+#' @return value
 #' @author Zizhen Yao
 refine_cl <- function(cl, 
                       co.ratio=NULL, 

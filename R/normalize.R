@@ -3,10 +3,9 @@
 #' @param dat 
 #' @param x 
 #'
-#' @return
+#' @return value
 #' @export
-#'
-#' @examples
+
 lm_matrix <- function(dat, x)
 {
   coef <- colSums(t(dat) * x) / sum(x^2)
@@ -45,10 +44,9 @@ lm_matrix <- function(dat, x)
 #' @param padj.th 
 #' @param min.genes 
 #'
-#' @return
+#' @return value
 #' @export
-#'
-#' @examples
+
 lm_normalize <- function(dat, 
                          x, 
                          R_2.th = 0.2, 
