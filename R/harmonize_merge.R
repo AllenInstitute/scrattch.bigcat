@@ -418,9 +418,9 @@ merge_cl_multiple <- function(comb.dat, merge.sets, cl, anchor.genes=NULL, genes
   if(!is.null(genes.allowed)){
     for(set in merge.sets){
       select.genes = intersect(row.names(cl.means.list[[set]]), genes.allowed)
-      cl.means.list[[set]] = cl.means.list[[set]][select.genes, ]
-      cl.present.list[[set]] = cl.present.list[[set]][select.genes, ]
-      cl.sqr.means.list[[set]] = cl.sqr.means.list[[set]][select.genes, ]
+      cl.means.list[[set]] = cl.means.list[[set]][select.genes, ,drop=FALSE]
+      cl.present.list[[set]] = cl.present.list[[set]][select.genes, ,drop=FALSE]
+      cl.sqr.means.list[[set]] = cl.sqr.means.list[[set]][select.genes, ,drop=FALSE]
     }
   }
 
@@ -483,9 +483,9 @@ merge_cl_multiple <- function(comb.dat, merge.sets, cl, anchor.genes=NULL, genes
     if(!is.null(genes.allowed)){
       for(set in merge.sets){
         select.genes = intersect(row.names(new.cl.means.list[[set]]), genes.allowed)
-        new.cl.means.list[[set]] = new.cl.means.list[[set]][select.genes, ]
-        new.cl.present.list[[set]] = new.cl.present.list[[set]][select.genes, ]
-        new.cl.sqr.means.list[[set]] = new.cl.sqr.means.list[[set]][select.genes, ]
+        new.cl.means.list[[set]] = new.cl.means.list[[set]][select.genes, ,drop=FALSE]
+        new.cl.present.list[[set]] = new.cl.present.list[[set]][select.genes, ,drop=FALSE]
+        new.cl.sqr.means.list[[set]] = new.cl.sqr.means.list[[set]][select.genes, ,drop=FALSE]
       }
     }
     
