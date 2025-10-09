@@ -2,10 +2,9 @@
 #'
 #' @param cl.rd 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 get_cl_sim <- function(cl.rd)
 {
   if(ncol(cl.rd)>2 & nrow(cl.rd) > 2){
@@ -40,11 +39,11 @@ get_cl_sim_multiple <- function(cl.rd.list, FUN =pmax)
 ##' ##' .. content for \description{} (no empty lines) ..
 ##'
 ##' .. content for \details{} ..
-##' @title 
+##' @title combine_cl_sim
 ##' @param cl.rd.list 
 ##' @param cl 
 ##' @param comb.dat 
-##' @return 
+##' @return value.  
 ##' @author Zizhen Yao
 combine_cl_sim <- function(cl.rd.list, cl, comb.dat)
   {
@@ -65,23 +64,22 @@ combine_cl_sim <- function(cl.rd.list, cl, comb.dat)
     cl.sim = get_cl_sim_multiple(select.cl.rd.list)
   }
 
-                                        #' Title
+#' Title: de_genes_pairs_multiple
 #'
-#' @param dat.list 
-#' @param de.param.list 
-#' @param common.genes
-#' @param cl 
-#' @param pairs 
-#' @param cl.means.list 
-#' @param cl.present.list 
-#' @param lfc.conservation.th 
-#' @param de.genes.list 
-#' @param max.cl.size 
+#' @param dat.list dat.list
+#' @param de.param.list de.param.list 
+#' @param common.genes common.genes
+#' @param cl cl
+#' @param pairs pairs
+#' @param cl.means.list cl.means.list 
+#' @param cl.present.list cl.present.list
+#' @param lfc.conservation.th lfc.conservation.th
+#' @param de.genes.list de.genes.list
+#' @param max.cl.size max.cl.size
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 de_genes_pairs_multiple <- function(dat.list, de.param.list,cl, pairs, cl.means.list, cl.present.list, cl.sqr.means.list, lfc.conservation.th=0.6, de.genes.list=NULL, max.cl.size=200, mc.cores=1, method="fast_limma")
   {
 
@@ -270,39 +268,27 @@ get_cl_stats_list <- function(comb.dat, merge.sets, cl, max.cl.size=300,mc.cores
 
 ####Change criteria. If one of the platform shows significant DE genes, and the other platform show consistent fold change, keep the clusters seperate. 
 
-#' Title
+#' .. content for \description{} (no empty lines) ..
 #'
-#' @param comb.dat 
-#' @param merge.dat.list 
-#' @param cl 
-#' @param anchor.genes 
-#' @param verbose 
-#' @param pairBatch 
-#' @param de.genes.list 
-#' @param lfc.conservation.th 
-#' @param merge.type 
-#'
-#' @return
+#' .. content for \details{} ..
+#' @title merge_cl_multiple
+#' @param comb.dat comb.dat
+#' @param merge.sets merge.sets 
+#' @param cl cl
+#' @param anchor.genes anchor.genes
+#' @param verbose verbose
+#' @param pairBatch pairBatch
+#' @param lfc.conservation.th lfc.conservation.th
+#' @param merge.type merge.type
+#' @param de.method de.method
+#' @param max.cl.size max.cl.size 
+#' @param compare.k compare.k 
+#' @param mc.cores mc.cores
+#' @param pairBatch pairBatch
+#' @param cl.stats.list cl.stats.list
 #' @export
-#'
-#' @examples
-##' .. content for \description{} (no empty lines) ..
-##'
-##' .. content for \details{} ..
-##' @title 
-##' @param comb.dat 
-##' @param merge.sets 
-##' @param cl 
-##' @param anchor.genes 
-##' @param verbose 
-##' @param pairBatch 
-##' @param lfc.conservation.th 
-##' @param merge.type 
-##' @param de.method 
-##' @param max.cl.size 
-##' @param compare.k 
-##' @return 
-##' @author Zizhen Yao
+#' @return value.  
+#' @author Zizhen Yao
 merge_cl_multiple <- function(comb.dat, merge.sets, cl, anchor.genes=NULL, genes.allowed=NULL, joint.rd.dat=NULL, verbose=TRUE, lfc.conservation.th=0.7, merge.type="undirectional", de.method="fast_limma",max.cl.size=300, compare.k=4, mc.cores=5, pairBatch=100, cl.stats.list=NULL)
 {
   #print("merge_cl_multiple")

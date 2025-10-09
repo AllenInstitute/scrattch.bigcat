@@ -14,10 +14,9 @@ varibow <-function (n_colors)
 #' @param rd.dat 
 #' @param cl 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 get_RD_cl_center <- function(rd.dat, cl)
 {
   cl.center=do.call("rbind",tapply(1:nrow(rd.dat), cl[row.names(rd.dat)], function(x){
@@ -45,10 +44,9 @@ get_RD_cl_center <- function(rd.dat, cl)
 #' @param fn.color 
 #' @param raster whether to rasterize the scatterplot. Default=F
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 plot_RD_cl <- function(rd.dat, cl, cl.color=NULL, cl.label=NULL,cex=0.15, fn.size =2, alpha.val=NULL,show.legend=FALSE, legend.size=2, label.center=TRUE, bg="blank",fn.color="black", na.val="grey60",no.shape=TRUE,ncol=4,shift.x=0, shift.y=0, raster=F, dpi=300)
 {
   x=unique(cl)
@@ -152,10 +150,9 @@ plot_RD_cl <- function(rd.dat, cl, cl.color=NULL, cl.label=NULL,cex=0.15, fn.siz
 #' @param raster whether to rasterize the scatterplot. Default=F
 #' 
 #' 
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 plot_RD_meta <- function(rd.dat, meta, meta.col=NULL,show.legend=TRUE, cex=0.15, legend.size=5,alpha.val=1, palette = NULL, reverse = FALSE, low="blue",high="red", raster=F, dpi=300, na.val="grey60")
 {
   rd.dat = as.data.frame(rd.dat)
@@ -233,10 +230,9 @@ plot_RD_meta <- function(rd.dat, meta, meta.col=NULL,show.legend=TRUE, cex=0.15,
 #' @param genes 
 #' @param cex 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 plot_RD_gene <- function(rd.dat, norm.dat, genes, cex=0.15, raster=F, dpi=300)
 {
   library(ggplot2)
@@ -270,10 +266,9 @@ plot_RD_gene <- function(rd.dat, norm.dat, genes, cex=0.15, raster=F, dpi=300)
 #' @param cols 
 #' @param layout 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 multiplot <- function(..., plotlist=NULL, cols=1, layout=NULL,byrow=FALSE) {
   library(grid)
   # Make a list from the ... arguments and plotlist
@@ -324,10 +319,9 @@ multiplot <- function(..., plotlist=NULL, cols=1, layout=NULL,byrow=FALSE) {
 #' @param prefix 
 #' @param bg.col 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 plot_3d_label <- function(df, col, label_col=NULL,cex=1, label.cex=cex, init=TRUE, prefix=NULL,bg.col="gray60")
 {
   library(rgl)
@@ -360,10 +354,9 @@ plot_3d_label <- function(df, col, label_col=NULL,cex=1, label.cex=cex, init=TRU
 #' @param tt 
 #' @param bg.col 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 mybgplot3d <- function(tt, bg.col=bg.col)
 {
   viewport <- par3d("viewport")
@@ -394,10 +387,9 @@ mybgplot3d <- function(tt, bg.col=bg.col)
 #' @param prefix 
 #' @param bg.col 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 plot_3d_val <- function(df, val, cex=1, max.val=quantile(val, 0.99), init=TRUE, prefix=NULL,bg.col="gray60")
 {
   library(rgl)
@@ -429,10 +421,9 @@ plot_3d_val <- function(df, val, cex=1, max.val=quantile(val, 0.99), init=TRUE, 
 #' @param bg.col 
 #' @param dir 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 
 plot_3d_label_multiple <- function(df, 
                                    cols, 
@@ -511,10 +502,9 @@ plot_3d_label_multiple <- function(df,
 #' @param k 
 #' @param th 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 clean_outliers <- function(rd.dat, k=10, th=6)
 {
   knn.result = nn2(rd.dat, k=k)
@@ -534,10 +524,9 @@ clean_outliers <- function(rd.dat, k=10, th=6)
 #' @param bg.alpha 
 #' @param cex 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 plot_2d_select <- function(rd.dat, select.cells, fg.col=  "red", bg.col="gray", fg.alpha=1, bg.alpha=0.5,cex=0.15)
 {
   meta = factor(row.names(rd.dat) %in% select.cells)
@@ -559,10 +548,9 @@ plot_2d_select <- function(rd.dat, select.cells, fg.col=  "red", bg.col="gray", 
 #' @param web.fn 
 #' @param web.dir 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 plot_3d_select <- function(rd.dat, select.cells, fg.col=  "red", bg.col="gray", fg.alpha=1, bg.alpha=0.5,cex=0.15, web.fn=NULL, web.dir="./")                           
 {
   meta = factor(row.names(rd.dat) %in% select.cells)
@@ -581,7 +569,7 @@ plot_3d_select <- function(rd.dat, select.cells, fg.col=  "red", bg.col="gray", 
 ##' .. content for \description{} (no empty lines) ..
 ##'
 ##' .. content for \details{} ..
-##' @title 
+##' @title plot_RD_cl_subset
 ##' @param rd.dat 
 ##' @param cl 
 ##' @param cl.color 
@@ -594,7 +582,7 @@ plot_3d_select <- function(rd.dat, select.cells, fg.col=  "red", bg.col="gray", 
 ##' @param fg.size 
 ##' @param bg.size 
 ##' @param ... 
-##' @return 
+##' @return value.  
 ##' @author Zizhen Yao
 plot_RD_cl_subset<- function(rd.dat, cl, cl.color,cl.label,select.samples,missing.color="gray85",min.size=10,fg.alpha=1,bg.alpha=0.5,fg.size=1, bg.size=0.15,...)
 {
@@ -630,21 +618,24 @@ plot_RD_cl_subset<- function(rd.dat, cl, cl.color,cl.label,select.samples,missin
 #' @param alpha level of transparency of dots. Value between 0 (fully transparent) and 1 (fully opaque)
 #' @param cex size of plotted points. Default = 0.25
 #' @param save.format figures can be saved as "png", "pdf" or "both"
-#' @param plot.height 
-#' @param plot.width
+#' @param plot.height plot.height
+#' @param plot.width plot.width
 #' @param show.legend TRUE or FALSE. Whether to show legend with plot.  
 #'   
-#'    
-#' @example_data:
-#'  
+#' @examples
+#' # First, load the example data
 #' load("data/rd_plot_example/example_umap.csv")
 #' load("data/rd_plot_example/anno.df.rda")
+#'
+#' # Then, run the function with the loaded data
+#' plots <- plot_2d_umap_anno(umap.fn = "data/rd_plot_example/example_umap.csv",
+#'                            anno.df = anno.df, dest.d = "./",
+#'                            meta.fields = c("platform", "joint_region"),
+#'                            show.label = FALSE, alpha = 0.5, cex = 0.15,
+#'                            save.format = "both", plot.height = 7, plot.width = 10,
+#'                            show.legend = TRUE)h=10, show.legend=TRUE)
 #' 
-#' 
-#' @usage plots <- plot_2d_umap_anno(umap.fn="data/rd_plot_example/example_umap.csv",anno.df=anno.df, dest.d="./", meta.fields=c("platform","joint_region"),show.label=FALSE,alpha=0.5, cex=0.15,save.format="both", plot.height=7, plot.width=10, show.legend=TRUE)
-#' 
-#'  
-#'    
+   
 plot_2d_umap_anno <- function(umap.fn, 
                               anno.df, 
                               dest.d="./",
@@ -768,21 +759,22 @@ plot_2d_umap_anno <- function(umap.fn,
 #' @param cex size of plotted points. Default = 0.25
 #' @param html.fn name of html file to save figures can be saved as "png", "pdf" or "both"
 #'    
-#' @example_data:
-#'  
+#' @examples
+#' # First, load the example data
 #' umap <- read.csv("data/rd_plot_example/3d.umap.sampled.csv")
 #' load("data/rd_plot_example/anno.df.3d.rda")
-#' 
-#' 
-#' @usage plots <- plot_3d_umap_anno(umap.fn="3d.umap.sampled.csv", anno.df, cols=c("platform","cluster"),label_cols=list(NULL,NULL),html.fn = "3d.umap",dest.d="data/rd_plot_example" )
-#' 
-#'  
+#'
+#' # Then, run the function with the loaded data
+#' plots <- plot_3d_umap_anno(
+#'   umap.fn = "3d.umap.sampled.csv",
+#'   anno.df = anno.df,
+#'   cols = c("platform", "cluster"),
+#'   label_cols = list(NULL, NULL),
+#'   html.fn = "3d.umap",
+#'   dest.d = "data/rd_plot_example"
+#' )
 #'    
 
-#dest.d = "Manuscript/common/umap_constellation/"
-#for(umap.fn in dir(dest.d, pattern="umap.2d.sampled.csv")){
-#  plot_2d_umap(umap.fn, dest.d)
-#}
 plot_3d_umap_anno <- function(umap.fn,
                               anno.df, 
                               cols= c("region","cluster"),
@@ -816,17 +808,14 @@ plot_3d_umap_anno <- function(umap.fn,
 #' @param fg.cells vector of id's to plot on foreground
 #' @param fg.cex foreground point size
 #' @param fg.alpha foreground alpha value
-#' @param bg.cex
-#' @param bg.alpha
+#' @param bg.cex bg.cex
+#' @param bg.alpha bg.alpha
 #' @param bg.color default is null and will use the meta.col if color provided all background points will get that color
 #' @param rel.legend.width is fraction of plot width. Need to adjust in case of large legends
 #' 
-#' @return
+#' @return value. 
 #' @export
-#' @example
 #' 
-#' 
-
 
 plot_RD_highlight <- function(rd.dat, 
                               meta, 

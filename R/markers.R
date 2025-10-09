@@ -6,10 +6,9 @@
 #' @param de.genes 
 #' @param ... 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 select_markers <- function(norm.dat, cl, n.markers=20,de.genes=NULL, mc.cores=1,...)
   {
     require(parallel)
@@ -41,10 +40,9 @@ select_markers <- function(norm.dat, cl, n.markers=20,de.genes=NULL, mc.cores=1,
 #' @param max.num 
 #' @param bin.th 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 get_gene_score <- function(de.genes,cl.means=NULL, all.genes=NULL, top.n=50, max.num=1000,bin.th=4, mc.cores=1)
   {
     require(Matrix)    
@@ -121,10 +119,9 @@ get_gene_score <- function(de.genes,cl.means=NULL, all.genes=NULL, top.n=50, max
 #' @param top.n 
 #' @param max.num 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 select_markers_pair <- function(de.genes, add.genes, cl.means, gene.score=NULL,rm.genes=NULL,top.n=50,max.num=2000)
   {
     pairs =do.call("rbind",strsplit(gsub("cl","",names(add.genes)), "_"))
@@ -168,10 +165,9 @@ select_markers_pair <- function(de.genes, add.genes, cl.means, gene.score=NULL,r
 #' @param top.n 
 #' @param max.num 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 select_markers_pair_direction <- function(de.genes, add.up,add.down,cl.means, up.gene.score=NULL,down.gene.score=NULL,rm.genes=NULL,top.n=50,max.num=2000)
   {
     up.genes = down.genes=NULL
@@ -234,10 +230,9 @@ select_markers_pair_direction <- function(de.genes, add.up,add.down,cl.means, up
 #' @param up.gene.score 
 #' @param down.gene.score 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 # Always directory
 select_markers_pair_group_top<- function(cl, g1,g2,de.genes,cl.means, top.n=50,max.num=1000,n.markers=20,up.gene.score=NULL, down.gene.score=NULL)
 {
@@ -310,10 +305,9 @@ select_markers_pair_group<- function(cl, g1,g2,de.genes,cl.means, top.n=50,max.n
 #' @param rm.genes 
 #' @param pairs 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 select_N_markers <- function(de.genes, cl.means, up.gene.score=NULL, down.gene.score=NULL, default.markers=NULL, pair.num =1, add.up=pair.num, add.down=pair.num, rm.genes=NULL, pairs=names(de.genes), mc.cores=20)
   {
    add.up = setNames(rep(add.up, length(pairs)), pairs)
@@ -360,10 +354,9 @@ select_N_markers <- function(de.genes, cl.means, up.gene.score=NULL, down.gene.s
 #' @param up.gene.score 
 #' @param down.gene.score 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 select_pos_markers <- function(de.genes, cl, select.cl=unique(cl), cl.means=NULL, n.markers=3, default.markers=NULL, rm.genes=NULL, up.gene.score=NULL, down.gene.score=NULL,mc.cores=1)
   {
     library(parallel)
@@ -443,10 +436,9 @@ select_top_pos_markers <- function(de.genes, cl, n.markers=3, up.gene.score, dow
 #' @param tau.th 
 #' @param n.markers 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 markers_max_tau <- function(cl.dat, th=0.5, tau.th=0.7,n.markers=3)
   {
     tau = calc_tau(cl.dat)
@@ -474,10 +466,9 @@ markers_max_tau <- function(cl.dat, th=0.5, tau.th=0.7,n.markers=3)
 #' @param tau.th 
 #' @param top.n 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 markers_tau_one_vs_other <- function(cl, cl.present.counts, present.th=0.4, tau.th=0.8,top.n=10)
   {
     all.g = row.names(cl.present.counts)
@@ -507,10 +498,9 @@ markers_tau_one_vs_other <- function(cl, cl.present.counts, present.th=0.4, tau.
 #' @param n.markers 
 #' @param cl.present.counts 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 group_specific_markers <- function(cl.g, 
                                    norm.dat, 
                                    cl, 
@@ -568,10 +558,9 @@ group_specific_markers <- function(cl.g,
 #' @param cl 
 #' @param ... 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 within_group_specific_markers <- function(cl.g, norm.dat, cl, ...)
   {
     cl = as.factor(cl)
@@ -597,10 +586,9 @@ within_group_specific_markers <- function(cl.g, norm.dat, cl, ...)
 #' @param spec.exp 
 #' @param mcores 
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 get_beta_score <- function(propExpr, spec.exp = 2, mcores=1){
   library(doMC)
   if(mcores ==1){
@@ -631,10 +619,9 @@ get_beta_score <- function(propExpr, spec.exp = 2, mcores=1){
 #' @param de.genes 
 #' @param cl.group Assignment of clusters to groups cluster as names, and group id as values.
 #'
-#' @return
+#' @return value. 
 #' @export
-#'
-#' @examples
+
 
 
 select_markers_groups <- function(de.genes, cl.group, cl.means, n.markers=1,...)

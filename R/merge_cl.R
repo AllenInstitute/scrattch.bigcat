@@ -4,10 +4,9 @@
 #' @param de.param 
 #' @param merge.type 
 #'
-#' @return
+#' @return value
 #' @export
-#'
-#' @examples
+
 test_merge <- function(de.pair, de.param, merge.type="undirectional")
   {
     if(length(de.pair)==0){
